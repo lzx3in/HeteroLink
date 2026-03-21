@@ -153,3 +153,6 @@ install(TARGETS heterolink-host
 # 测试
 enable_testing()
 add_subdirectory(tests)
+
+# 示例程序
+add_subdirectory(examples)
