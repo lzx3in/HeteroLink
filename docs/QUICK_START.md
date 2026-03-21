@@ -1,0 +1,156 @@
+# HeteroLink 快速开始
+
+本指南帮助你快速上手 HeteroLink 项目。
+
+---
+
+## 📋 前提条件
+
+- Linux / macOS / Windows (WSL2)
+- 至少 10GB 可用磁盘空间
+- USB 转串口适配器
+- ESP32 开发板 (ESP32-C6 推荐)
+
+---
+
+## 1️⃣ 安装 ESP-IDF
+
+### 方法 A: 使用 EIM (推荐)
+
+```bash
+cd ~/Code/HeteroLink/scripts
+./install-esp-idf.sh
+```
+
+### 方法 B: 手动安装
+
+```bash
+# 克隆 ESP-IDF
+git clone -b v5.3 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf
+
+# 安装工具链
+./install.sh esp32 esp32s3 esp32c6
+
+# 加载环境变量
+. export.sh
+```
+
+### 验证安装
+
+```bash
+idf.py --version
+```
+
+---
+
+## 2️⃣ 克隆 HeteroLink
+
+```bash
+git clone https://github.com/HeteroLink/HeteroLink.git
+cd HeteroLink
+```
+
+---
+
+## 3️⃣ 编译固件
+
+```bash
+cd software/esp32/subboard
+
+# 设置目标芯片
+idf.py set-target esp32c6
+
+# 配置项目
+idf.py menuconfig
+```
+
+### 关键配置项
+
+```
+HeteroLink Configuration →
+    WiFi SSID: <你的 WiFi 名称>
+    WiFi Password: <你的 WiFi 密码>
+    MQTT Broker URI: mqtt://broker.emqx.io:1883
+```
+
+### 编译
+
+```bash
+idf.py build
+```
+
+---
+
+## 4️⃣ 烧录固件
+
+```bash
+# 连接 ESP32 到电脑
+# 找到串口设备 (Linux: /dev/ttyUSB*, macOS: /dev/cu.usb*)
+
+# 烧录
+idf.py -p /dev/ttyUSB0 flash
+
+# 监视输出
+idf.py -p /dev/ttyUSB0 monitor
+```
+
+**退出监视器**: `Ctrl+]`
+
+---
+
+## 5️⃣ 测试 MQTT 连接
+
+### 订阅设备状态
+
+```bash
+# 安装 MQTT 客户端
+sudo apt install mosquitto-clients
+
+# 订阅
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/#" -v
+```
+
+预期输出：
+```
+heterolink/subboard/status online
+```
+
+### 发送控制命令
+
+```bash
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/device1/command" \
+  -m '{"cmd": "ping"}'
+```
+
+查看串口输出确认收到命令。
+
+---
+
+## 🎯 下一步
+
+- 📖 阅读 [架构文档](hardware/ARCHITECTURE.md)
+- 🔧 查看 [示例项目](../examples/)
+- 💬 加入 [讨论区](https://github.com/HeteroLink/HeteroLink/discussions)
+
+---
+
+## ❓ 常见问题
+
+### 编译失败
+
+确保 ESP-IDF 环境变量已加载：
+```bash
+. $HOME/esp/esp-idf/export.sh
+```
+
+### 烧录失败
+
+- 检查串口权限：`sudo usermod -a -G dialout $USER`
+- 重启后重新登录
+
+### MQTT 连接失败
+
+- 检查防火墙设置
+- 尝试其他 Broker: `mqtt://test.mosquitto.org:1883`
