@@ -70,7 +70,7 @@ cd ~/Code/HeteroLink/scripts
 ### 2. 编译固件
 
 ```bash
-cd software/esp32/subboard
+cd firmware/esp32/subboard
 
 # 设置目标芯片
 idf.py set-target esp32c6
@@ -92,7 +92,10 @@ idf.py -p /dev/ttyUSB0 flash
 idf.py -p /dev/ttyUSB0 monitor
 ```
 
-详细指南请查看 [快速开始文档](docs/QUICK_START.md)
+**📖 详细指南**:
+- [安装指南](docs/getting-started/installation.md)
+- [快速上手](docs/getting-started/quick-start.md)
+- [问题排查](docs/getting-started/troubleshooting.md)
 
 ---
 
@@ -100,24 +103,66 @@ idf.py -p /dev/ttyUSB0 monitor
 
 ```
 HeteroLink/
-├── docs/                    # 文档
-│   ├── QUICK_START.md       # 快速开始
-│   ├── hardware/            # 硬件文档
-│   ├── firmware/            # 固件文档
-│   └── software/            # 上位机文档
-├── hardware/                # 硬件设计 (KiCad)
-│   ├── subboard/            # 协处理器子板
-│   └── adapter/             # 转接板
-├── software/                # 软件
-│   ├── esp32/               # ESP32 固件
-│   │   └── subboard/        # 子板固件
-│   └── host/                # 上位机 (Qt/C++)
-├── scripts/                 # 工具脚本
-├── examples/                # 示例项目
-├── tests/                   # 测试用例
-├── .github/                 # GitHub 配置
-├── LICENSE                  # Apache-2.0 许可证
-└── README.md                # 本文件
+├── 📄 根文件
+│   ├── README.md                # 本文件
+│   ├── LICENSE                  # Apache-2.0 许可证
+│   ├── CONTRIBUTING.md          # 贡献指南
+│   ├── CODE_OF_CONDUCT.md       # 行为准则
+│   ├── SECURITY.md              # 安全策略
+│   ├── CHANGELOG.md             # 版本历史
+│   ├── AUTHORS.md               # 贡献者名单
+│   └── MAINTAINERS.md           # 维护者信息
+│
+├── 📚 文档 (docs/)
+│   ├── README.md                # 文档导航
+│   ├── getting-started/         # 快速开始
+│   │   ├── installation.md      # 安装指南
+│   │   ├── quick-start.md       # 快速上手
+│   │   └── troubleshooting.md   # 问题排查
+│   ├── hardware/                # 硬件文档
+│   │   ├── subboard/            # 子板设计
+│   │   └── compatibility.md     # 芯片兼容性
+│   ├── firmware/                # 固件文档
+│   │   ├── architecture.md      # 架构设计
+│   │   └── configuration.md     # 配置指南
+│   └── software/                # 上位机文档
+│
+├── 💾 固件 (firmware/)
+│   └── esp32/subboard/          # ESP32 固件
+│       ├── main/                # 主程序
+│       └── components/          # 自定义组件 (计划中)
+│
+├── 🔧 硬件 (hardware/)
+│   ├── subboard/                # 子板设计
+│   │   ├── kicad/               # KiCad 项目
+│   │   ├── gerbers/             # Gerber 文件
+│   │   └── bom/                 # BOM 表
+│   └── adapter/                 # 转接板 (计划中)
+│
+├── 🖥️ 上位机 (software/)
+│   ├── host/                    # Qt 应用 (计划中)
+│   ├── cli/                     # 命令行工具 (计划中)
+│   └── python/                  # Python 库 (计划中)
+│
+├── 📦 示例 (examples/)
+│   ├── basic-telemetry/         # 基础遥测
+│   ├── mqtt-control/            # MQTT 控制
+│   ├── spi-master/              # SPI 主站
+│   ├── motor-control/           # 电机控制
+│   └── data-logger/             # 数据记录器
+│
+├── 🧪 测试 (tests/)
+│   ├── hardware/                # 硬件测试
+│   ├── firmware/                # 固件测试
+│   └── integration/             # 集成测试
+│
+├── 🛠️ 脚本 (scripts/)
+│   ├── install-esp-idf.sh       # ESP-IDF 安装
+│   └── ...
+│
+└── .github/                     # GitHub 配置
+    ├── workflows/               # CI/CD
+    └── ISSUE_TEMPLATE/          # Issue 模板
 ```
 
 ---
@@ -141,7 +186,11 @@ HeteroLink/
 - 🔧 [提交 PR](https://github.com/HeteroLink/HeteroLink/pulls)
 - 📖 改进文档
 
-开始贡献前，请阅读 [贡献指南](CONTRIBUTING.md) 和 [行为准则](CODE_OF_CONDUCT.md)。
+开始贡献前，请阅读：
+- [贡献指南](CONTRIBUTING.md)
+- [行为准则](CODE_OF_CONDUCT.md)
+- [维护者信息](MAINTAINERS.md)
+- [安全策略](SECURITY.md)
 
 ---
 
@@ -156,14 +205,16 @@ HeteroLink/
 - [ESP-IDF](https://github.com/espressif/esp-idf) - Espressif 物联网开发框架
 - [EMQX](https://github.com/emqx/emqx) - 开源 MQTT Broker
 - [Qt](https://www.qt.io/) - 跨平台应用框架
+- 所有 [贡献者](AUTHORS.md)
 
 ---
 
 ## 📬 联系方式
 
-- 官网：https://heterolink.dev (待上线)
-- 文档：https://docs.heterolink.dev (待上线)
-- 讨论区：[GitHub Discussions](https://github.com/HeteroLink/HeteroLink/discussions)
+- 🌐 官网：https://heterolink.dev (待上线)
+- 📖 文档：[查看文档](docs/README.md)
+- 💬 讨论区：[GitHub Discussions](https://github.com/HeteroLink/HeteroLink/discussions)
+- 📧 安全：security@heterolink.dev (待设置)
 
 ---
 
@@ -171,6 +222,13 @@ HeteroLink/
 
 **Made with ❤️ by the HeteroLink Team**
 
-[⭐ Star this repo](https://github.com/HeteroLink/HeteroLink/stargazers) | [🍴 Fork](https://github.com/HeteroLink/HeteroLink/fork) | [📥 Download](https://github.com/HeteroLink/HeteroLink/releases)
+[⭐ Star this repo](https://github.com/HeteroLink/HeteroLink/stargazers) | 
+[🍴 Fork](https://github.com/HeteroLink/HeteroLink/fork) | 
+[📥 Releases](https://github.com/HeteroLink/HeteroLink/releases) | 
+[📖 Docs](docs/README.md)
+
+---
+
+📦 **v0.1.0** - 2026-03-21 - [查看变更日志](CHANGELOG.md)
 
 </div>
