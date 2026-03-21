@@ -1,0 +1,20 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "custom-compiler",
+      "displayName": "Custom Compiler Path",
+      "description": "自定义编译器路径（复制此文件并修改为你自己的路径）",
+      "inherits": "linux-system",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/gcc",
+        "CMAKE_CXX_COMPILER": "/usr/bin/g++"
+      }
+    }
+  ]
+}
