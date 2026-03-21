@@ -11,11 +11,25 @@
       "name": "base",
       "hidden": true,
       "displayName": "Base Config",
-      "description": "基础配置（不指定编译器，使用系统默认）",
+      "description": "基础配置",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/install/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "base-windows",
+      "hidden": true,
+      "displayName": "Base Windows Config",
+      "description": "Windows 基础配置",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}\\build\\${presetName}",
+      "installDir": "${sourceDir}\\install\\${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     },
     {
@@ -59,26 +73,75 @@
       }
     },
     {
-      "name": "windows-msvc",
-      "displayName": "Windows MSVC",
-      "description": "Windows MSVC 编译器",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "binaryDir": "${sourceDir}\\build\\${presetName}",
-      "installDir": "${sourceDir}\\install\\${presetName}",
+      "name": "windows-msvc-2022",
+      "displayName": "Windows MSVC 2022 x64",
+      "description": "Visual Studio 2022 (v143) 64 位",
+      "inherits": "base-windows",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
+      "toolset": "v143",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "/W4 /permissive- /Zc:__cplusplus",
+        "CMAKE_CXX_FLAGS_RELEASE": "/O2 /DNDEBUG",
+        "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Od /RTC1"
+      }
+    },
+    {
+      "name": "windows-msvc-2022-debug",
+      "displayName": "Windows MSVC 2022 x64 Debug",
+      "description": "Visual Studio 2022 (v143) 64 位 Debug 版本",
+      "inherits": "windows-msvc-2022",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Od /RTC1 /MDd"
+      }
+    },
+    {
+      "name": "windows-msvc-2019",
+      "displayName": "Windows MSVC 2019 x64",
+      "description": "Visual Studio 2019 (v142) 64 位",
+      "inherits": "base-windows",
+      "generator": "Visual Studio 16 2019",
+      "architecture": "x64",
+      "toolset": "v142",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "/W4 /permissive-",
+        "CMAKE_CXX_FLAGS_RELEASE": "/O2 /DNDEBUG"
+      }
+    },
+    {
+      "name": "windows-mingw",
+      "displayName": "Windows MinGW GCC",
+      "description": "MinGW GCC 编译器（需要安装 MSYS2 或 MinGW-w64）",
+      "inherits": "base-windows",
+      "generator": "MinGW Makefiles",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_C_FLAGS": "-m64",
+        "CMAKE_CXX_FLAGS": "-m64 -static-libgcc -static-libstdc++",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
+        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0"
+      }
+    },
+    {
+      "name": "windows-mingw-debug",
+      "displayName": "Windows MinGW GCC Debug",
+      "description": "MinGW GCC Debug 版本",
+      "inherits": "windows-mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0"
       }
     },
     {
       "name": "macos-clang",
       "displayName": "macOS Clang",
       "description": "macOS Clang 编译器",
+      "inherits": "base",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -105,6 +168,36 @@
       "displayName": "Build Release",
       "configurePreset": "linux-release",
       "configuration": "Release"
+    },
+    {
+      "name": "windows-msvc-2022-build",
+      "displayName": "Build MSVC 2022",
+      "configurePreset": "windows-msvc-2022",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-msvc-2022-debug-build",
+      "displayName": "Build MSVC 2022 Debug",
+      "configurePreset": "windows-msvc-2022-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-msvc-2019-build",
+      "displayName": "Build MSVC 2019",
+      "configurePreset": "windows-msvc-2019",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-mingw-build",
+      "displayName": "Build MinGW",
+      "configurePreset": "windows-mingw",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-mingw-debug-build",
+      "displayName": "Build MinGW Debug",
+      "configurePreset": "windows-mingw-debug",
+      "configuration": "Debug"
     }
   ],
   "testPresets": [
@@ -115,13 +208,31 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "windows-msvc-2022-test",
+      "displayName": "Test MSVC 2022",
+      "configurePreset": "windows-msvc-2022",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-mingw-test",
+      "displayName": "Test MinGW",
+      "configurePreset": "windows-mingw",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ],
   "workflowPresets": [
     {
       "name": "linux-debug-workflow",
       "displayName": "Linux Debug Workflow",
-      "description": "完整的 Debug 构建工作流（配置→构建→测试）",
+      "description": "完整的 Linux Debug 构建工作流（配置→构建→测试）",
       "steps": [
         {
           "type": "configure",
@@ -140,7 +251,7 @@
     {
       "name": "linux-release-workflow",
       "displayName": "Linux Release Workflow",
-      "description": "完整的 Release 构建工作流（配置→构建→测试）",
+      "description": "完整的 Linux Release 构建工作流（配置→构建→测试）",
       "steps": [
         {
           "type": "configure",
@@ -149,6 +260,44 @@
         {
           "type": "build",
           "name": "linux-release-build"
+        }
+      ]
+    },
+    {
+      "name": "windows-msvc-2022-workflow",
+      "displayName": "Windows MSVC 2022 Workflow",
+      "description": "完整的 Windows MSVC 2022 构建工作流（配置→构建→测试）",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "windows-msvc-2022"
+        },
+        {
+          "type": "build",
+          "name": "windows-msvc-2022-build"
+        },
+        {
+          "type": "test",
+          "name": "windows-msvc-2022-test"
+        }
+      ]
+    },
+    {
+      "name": "windows-mingw-workflow",
+      "displayName": "Windows MinGW Workflow",
+      "description": "完整的 Windows MinGW 构建工作流（配置→构建→测试）",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "windows-mingw"
+        },
+        {
+          "type": "build",
+          "name": "windows-mingw-build"
+        },
+        {
+          "type": "test",
+          "name": "windows-mingw-test"
         }
       ]
     }

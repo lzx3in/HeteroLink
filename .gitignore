@@ -63,9 +63,19 @@ temp/
 # ==============================================================================
 build/linux-debug/
 build/linux-release/
-build/windows-msvc/
+build/windows-msvc-2022/
+build/windows-msvc-2022-debug/
+build/windows-msvc-2019/
+build/windows-mingw/
+build/windows-mingw-debug/
 build/macos-clang/
 install/
+*.user
+*.sln
+*.vcxproj*
+*.opensdf
+*.VC.db
+ipch/
 
 # ==============================================================================
 # Secrets & Credentials (NEVER commit these!)
