@@ -10,12 +10,29 @@ set(CMAKE_AUTOUIC ON)
 # 优先查找 Qt6，如果没有则使用 Qt5
 find_package(Qt6 COMPONENTS Core Gui Widgets SerialPort QUIET)
 if(Qt6_FOUND)
-    find_package(Qt6 OPTIONAL_COMPONENTS Charts)
+    find_package(Qt6 OPTIONAL_COMPONENTS Charts Mqtt)
     set(QT_VERSION_MAJOR 6)
 else()
     find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets SerialPort)
     find_package(Qt5 OPTIONAL_COMPONENTS Charts)
+    # Qt5 没有官方的 MQTT 模块，需要手动查找
+    find_path(QT_MQTT_INCLUDE_DIR QMqttClient
+        PATHS /usr/include/qt5/QMqtt /usr/local/include/qt5/QMqtt
+        PATH_SUFFIXES Qt5QMqtt
+    )
     set(QT_VERSION_MAJOR 5)
+endif()
+
+# 检查是否找到 Qt MQTT
+if(Qt6_FOUND AND TARGET Qt6::Mqtt)
+    set(HAS_QT_MQTT TRUE)
+    message(STATUS "Qt6 MQTT module found")
+elseif(QT_MQTT_INCLUDE_DIR)
+    set(HAS_QT_MQTT TRUE)
+    message(STATUS "Qt5 MQTT module found (manual)")
+else()
+    set(HAS_QT_MQTT FALSE)
+    message(STATUS "Qt MQTT module not found - MQTT support disabled")
 endif()
 
 # 源文件
@@ -85,6 +102,10 @@ if(QT_VERSION_MAJOR EQUAL 6)
         target_link_libraries(heterolink-host PRIVATE Qt6::Charts)
         target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
     endif()
+    if(TARGET Qt6::Mqtt)
+        target_link_libraries(heterolink-host PRIVATE Qt6::Mqtt)
+        target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT)
+    endif()
 else()
     target_link_libraries(heterolink-host PRIVATE
         Qt5::Core
@@ -95,6 +116,19 @@ else()
     if(TARGET Qt5::Charts)
         target_link_libraries(heterolink-host PRIVATE Qt5::Charts)
         target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
+    endif()
+    # Qt5 MQTT 手动链接
+    if(HAS_QT_MQTT)
+        target_include_directories(heterolink-host PRIVATE ${QT_MQTT_INCLUDE_DIR})
+        target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT)
+        # 需要链接 Qt5MQTT 库（如果可用）
+        find_library(QT_MQTT_LIBRARY NAMES Qt5MQTT Qt5QMqtt
+            PATHS /usr/lib /usr/local/lib
+            PATH_SUFFIXES x86_64-linux-gnu
+        )
+        if(QT_MQTT_LIBRARY)
+            target_link_libraries(heterolink-host PRIVATE ${QT_MQTT_LIBRARY})
+        endif()
     endif()
 endif()
 

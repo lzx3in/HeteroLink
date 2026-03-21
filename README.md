@@ -140,7 +140,11 @@ HeteroLink/
 │   └── adapter/                 # 转接板 (计划中)
 │
 ├── 🖥️ 上位机 (software/)
-│   ├── host/                    # Qt 应用 (计划中)
+│   ├── host/                    # Qt 应用 ✅
+│   │   ├── protocol/            # 通信协议（UART + MQTT）
+│   │   ├── core/                # 核心业务逻辑
+│   │   ├── ui/                  # 图形界面
+│   │   └── storage/             # 数据存储
 │   ├── cli/                     # 命令行工具 (计划中)
 │   └── python/                  # Python 库 (计划中)
 │

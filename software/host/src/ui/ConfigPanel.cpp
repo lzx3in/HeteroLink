@@ -67,8 +67,13 @@ void ConfigPanel::saveConfig()
     // 保存 MQTT 配置
     configManager_->set("mqtt.brokerHost", mqttHostEdit_->text());
     configManager_->set("mqtt.brokerPort", mqttPortSpin_->value());
+    configManager_->set("mqtt.clientId", mqttClientIdEdit_->text());
     configManager_->set("mqtt.username", mqttUserEdit_->text());
     configManager_->set("mqtt.password", mqttPassEdit_->text());
+    configManager_->set("mqtt.useTls", mqttTlsCheck_->isChecked());
+    configManager_->set("mqtt.willEnabled", mqttWillCheck_->isChecked());
+    configManager_->set("mqtt.willTopic", mqttWillTopicEdit_->text());
+    configManager_->set("mqtt.willMessage", mqttWillMessageEdit_->text());
     
     // 保存告警配置
     configManager_->set("alarm.lowerLimit", alarmLowerSpin_->value());
@@ -176,6 +181,7 @@ QWidget* ConfigPanel::createMqttTab()
     
     // Broker 地址
     mqttHostEdit_ = new QLineEdit("localhost");
+    mqttHostEdit_->setPlaceholderText("例如：broker.emqx.io");
     form->addRow("Broker 地址:", mqttHostEdit_);
     
     // 端口
@@ -184,14 +190,43 @@ QWidget* ConfigPanel::createMqttTab()
     mqttPortSpin_->setValue(1883);
     form->addRow("端口:", mqttPortSpin_);
     
+    // 客户端 ID
+    mqttClientIdEdit_ = new QLineEdit();
+    mqttClientIdEdit_->setPlaceholderText("留空则自动生成");
+    form->addRow("客户端 ID:", mqttClientIdEdit_);
+    
     // 用户名
     mqttUserEdit_ = new QLineEdit();
+    mqttUserEdit_->setPlaceholderText("可选");
     form->addRow("用户名:", mqttUserEdit_);
     
     // 密码
     mqttPassEdit_ = new QLineEdit();
     mqttPassEdit_->setEchoMode(QLineEdit::Password);
+    mqttPassEdit_->setPlaceholderText("可选");
     form->addRow("密码:", mqttPassEdit_);
+    
+    // TLS 加密
+    mqttTlsCheck_ = new QCheckBox("启用 TLS 加密");
+    form->addRow("", mqttTlsCheck_);
+    
+    // Last Will 配置
+    mqttWillCheck_ = new QCheckBox("启用 Last Will 遗嘱消息");
+    form->addRow("", mqttWillCheck_);
+    
+    mqttWillTopicEdit_ = new QLineEdit();
+    mqttWillTopicEdit_->setPlaceholderText("例如：heterolink/subboard/status");
+    form->addRow("Will Topic:", mqttWillTopicEdit_);
+    
+    mqttWillMessageEdit_ = new QLineEdit("offline");
+    mqttWillMessageEdit_->setPlaceholderText("遗嘱消息内容");
+    form->addRow("Will Message:", mqttWillMessageEdit_);
+    
+    // 添加说明文本
+    auto label = new QLabel("💡 提示：MQTT 用于远端通道，支持设备集群管理和云端连接。");
+    label->setWordWrap(true);
+    label->setStyleSheet("color: #888; font-size: 12px;");
+    layout->addWidget(label);
     
     layout->addLayout(form);
     layout->addStretch();
@@ -200,6 +235,14 @@ QWidget* ConfigPanel::createMqttTab()
             this, &ConfigPanel::onMqttHostChanged);
     connect(mqttPortSpin_, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &ConfigPanel::onMqttPortChanged);
+    connect(mqttWillCheck_, &QCheckBox::stateChanged, this, [this](int state) {
+        mqttWillTopicEdit_->setEnabled(state == Qt::Checked);
+        mqttWillMessageEdit_->setEnabled(state == Qt::Checked);
+    });
+    
+    // 初始化 Will 编辑框状态
+    mqttWillTopicEdit_->setEnabled(false);
+    mqttWillMessageEdit_->setEnabled(false);
     
     return widget;
 }
@@ -289,8 +332,17 @@ void ConfigPanel::loadMqttConfig()
     
     mqttHostEdit_->setText(configManager_->get("mqtt.brokerHost", "localhost").toString());
     mqttPortSpin_->setValue(configManager_->get("mqtt.brokerPort", 1883).toInt());
+    mqttClientIdEdit_->setText(configManager_->get("mqtt.clientId", "").toString());
     mqttUserEdit_->setText(configManager_->get("mqtt.username", "").toString());
     mqttPassEdit_->setText(configManager_->get("mqtt.password", "").toString());
+    mqttTlsCheck_->setChecked(configManager_->get("mqtt.useTls", false).toBool());
+    mqttWillCheck_->setChecked(configManager_->get("mqtt.willEnabled", false).toBool());
+    mqttWillTopicEdit_->setText(configManager_->get("mqtt.willTopic", "").toString());
+    mqttWillMessageEdit_->setText(configManager_->get("mqtt.willMessage", "offline").toString());
+    
+    // 初始化 Will 编辑框状态
+    mqttWillTopicEdit_->setEnabled(mqttWillCheck_->isChecked());
+    mqttWillMessageEdit_->setEnabled(mqttWillCheck_->isChecked());
 }
 
 void ConfigPanel::loadAlarmConfig()

@@ -67,6 +67,12 @@ public:
     bool isConnected() const;
     
     /**
+     * @brief 获取当前配置
+     * @return MQTT 配置
+     */
+    MqttConfig getConfig() const { return config_; }
+    
+    /**
      * @brief 订阅 Topic
      * @param topic Topic 名称
      * @return 是否成功
@@ -105,10 +111,27 @@ public:
     void publishTelemetry(const QString& deviceId, const QString& data);
     
     /**
+     * @brief 发布命令到设备
+     * @param deviceId 设备 ID
+     * @param command 命令内容
+     */
+    void publishCommand(const QString& deviceId, const QString& command);
+    
+    /**
      * @brief 订阅设备命令
      * @param deviceId 设备 ID
      */
     void subscribeDeviceCommands(const QString& deviceId);
+    
+    /**
+     * @brief 订阅所有设备状态
+     */
+    void subscribeAllDeviceStatus();
+    
+    /**
+     * @brief 订阅所有设备遥测
+     */
+    void subscribeAllDeviceTelemetry();
     
 signals:
     /**
@@ -130,6 +153,27 @@ signals:
      */
     void errorOccurred(const QString& error);
     
+    /**
+     * @brief 收到设备状态
+     * @param deviceId 设备 ID
+     * @param online 是否在线
+     */
+    void deviceStatusReceived(const QString& deviceId, bool online);
+    
+    /**
+     * @brief 收到设备命令
+     * @param deviceId 设备 ID
+     * @param command 命令内容
+     */
+    void deviceCommandReceived(const QString& deviceId, const QString& command);
+    
+    /**
+     * @brief 收到遥测数据
+     * @param deviceId 设备 ID
+     * @param data JSON 数据
+     */
+    void telemetryReceived(const QString& deviceId, const QString& data);
+    
 private:
 #ifdef HAS_QT_MQTT
     std::unique_ptr<QMqttClient> client_;
@@ -137,9 +181,13 @@ private:
 #endif
     MqttConfig config_;
     bool connected_;
+    int reconnectAttempts_;
+    static const int MAX_RECONNECT_ATTEMPTS = 5;
     
 #ifdef HAS_QT_MQTT
     void setupClient();
+    void attemptReconnect();
+    QString parseDeviceIdFromTopic(const QString& topic);
 #endif
 };
 

@@ -80,8 +80,13 @@ private:
     // MQTT 配置
     QLineEdit *mqttHostEdit_;
     QSpinBox *mqttPortSpin_;
+    QLineEdit *mqttClientIdEdit_;
     QLineEdit *mqttUserEdit_;
     QLineEdit *mqttPassEdit_;
+    QCheckBox *mqttTlsCheck_;
+    QCheckBox *mqttWillCheck_;
+    QLineEdit *mqttWillTopicEdit_;
+    QLineEdit *mqttWillMessageEdit_;
     
     // 告警配置
     QDoubleSpinBox *alarmLowerSpin_;

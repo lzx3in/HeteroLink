@@ -7,8 +7,16 @@
 - **设备管理**: 支持多设备连接、状态监控
 - **数据可视化**: 实时波形显示、数据表格
 - **通信协议**: 
-  - UART 自定义二进制协议（近端通信）
-  - MQTT over WiFi（远端通信）
+  - **UART 自定义二进制协议**（近端通信）
+    - 高速双向数据传输
+    - kHz 级遥测数据上传
+    - μs 级指令响应
+  - **MQTT over WiFi**（远端通信）
+    - 设备集群管理
+    - 云端连接
+    - Last Will 遗嘱消息
+    - 自动重连机制
+    - TLS 加密支持（待实现）
 - **告警系统**: 阈值监控、告警记录
 - **数据记录**: CSV/JSON 格式导出
 - **配置管理**: JSON 配置文件
@@ -30,7 +38,21 @@
 - Qt6 Charts (可选，用于数据可视化)
 
 ### 可选依赖
-- Qt MQTT (需单独安装或使用第三方库)
+- **Qt MQTT** (用于 MQTT 远端通信)
+  - Qt6: `Qt6::Mqtt` 模块（Qt 6.2+ 自带）
+  - Qt5: 需单独安装 [QtMQTT](https://github.com/qt/qtmqtt)
+  
+安装 Qt MQTT（Qt6）:
+```bash
+# Ubuntu/Debian
+sudo apt install qt6-mqtt-dev
+
+# macOS (Homebrew)
+brew install qt@6  # 包含 MQTT 模块
+
+# Windows (vcpkg)
+vcpkg install qt6-mqtt
+```
 
 ## 构建说明
 
@@ -229,6 +251,13 @@ ctest --output-on-failure
 **Q: MQTT 连接失败**
 - 检查 Broker 地址和端口
 - 确认防火墙允许 MQTT 流量（默认 1883）
+- 检查是否安装了 Qt MQTT 模块
+- 查看日志输出确认错误信息
+
+**Q: 编译时提示 HAS_QT_MQTT 未定义**
+- 确认已安装 Qt MQTT 模块
+- 重新运行 CMake 配置
+- 检查 CMake 输出中是否显示 "Qt MQTT module found"
 
 ## 许可证
 

@@ -115,6 +115,28 @@ public:
      */
     void setMqttChannel(std::shared_ptr<MqttChannel> mqttChannel);
     
+    /**
+     * @brief 连接设备（MQTT 模式）
+     * @param deviceId 设备 ID
+     * @param brokerHost Broker 地址
+     * @param brokerPort Broker 端口
+     * @return 是否成功
+     */
+    bool connectDeviceMqtt(const QString& deviceId, const QString& brokerHost, quint16 brokerPort);
+    
+    /**
+     * @brief 断开设备（MQTT 模式）
+     * @param deviceId 设备 ID
+     */
+    void disconnectDeviceMqtt(const QString& deviceId);
+    
+    /**
+     * @brief 发送控制命令（MQTT 模式）
+     * @param deviceId 设备 ID
+     * @param command 命令内容（JSON 格式）
+     */
+    void sendControlCommandMqtt(const QString& deviceId, const QString& command);
+    
 signals:
     /**
      * @brief 设备列表变化

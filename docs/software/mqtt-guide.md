@@ -1,0 +1,386 @@
+# MQTT 远端通道使用指南
+
+## 概述
+
+HeteroLink 上位机支持通过 MQTT 协议连接远端 ESP32 协处理器子板，实现设备集群管理、云端连接和远程控制功能。
+
+## 系统架构
+
+```
+┌─────────────────────────────────────────┐
+│      HeteroLink Host (Qt/C++)           │
+│  ┌─────────────────────────────────┐   │
+│  │  MQTT Channel                    │   │
+│  │  - QMqttClient (Qt MQTT)         │   │
+│  │  - 自动重连                      │   │
+│  │  - Last Will 支持                │   │
+│  │  - TLS 加密 (待实现)             │   │
+│  └─────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+              ↕ MQTT over WiFi
+┌─────────────────────────────────────────┐
+│      MQTT Broker (EMQX/Mosquitto)       │
+└─────────────────────────────────────────┘
+              ↕ MQTT
+┌─────────────────────────────────────────┐
+│   ESP32 Subboard (ESP-IDF)              │
+│  ┌─────────────────────────────────┐   │
+│  │  MQTT5 Client                    │   │
+│  │  - 自动发布状态                  │   │
+│  │  - 订阅命令                      │   │
+│  │  - Last Will 遗嘱                │   │
+│  └─────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+## MQTT Topic 规范
+
+### 设备状态
+- **发布**: `heterolink/subboard/{deviceId}/status`
+- **消息**: `online` | `offline`
+- **QoS**: 1
+- **Retain**: true
+
+### 设备遥测
+- **发布**: `heterolink/subboard/{deviceId}/telemetry`
+- **消息**: JSON 格式数据
+- **QoS**: 1
+- **Retain**: false
+
+### 设备命令
+- **订阅**: `heterolink/subboard/{deviceId}/command`
+- **消息**: JSON 格式命令
+- **QoS**: 1
+- **Retain**: false
+
+## 配置说明
+
+### 1. 上位机 MQTT 配置
+
+在配置面板的"MQTT 配置"标签页中设置：
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| Broker 地址 | MQTT 服务器地址 | localhost |
+| 端口 | MQTT 服务器端口 | 1883 |
+| 客户端 ID | 唯一标识符（留空自动生成） | heterolink_host_xxxx |
+| 用户名 | 认证用户名（可选） | - |
+| 密码 | 认证密码（可选） | - |
+| TLS 加密 | 启用 TLS 加密连接 | 关闭 |
+| Last Will | 启用遗嘱消息 | 关闭 |
+| Will Topic | 遗嘱消息 Topic | heterolink/subboard/status |
+| Will Message | 遗嘱消息内容 | offline |
+
+### 2. ESP32 下位机配置
+
+在 ESP32 项目中配置 `sdkconfig`：
+
+```
+CONFIG_MQTT_PROTOCOL_5=y
+CONFIG_MQTT_TRANSPORT_SSL=n  # 如需 TLS 则启用
+```
+
+在代码中配置 Broker 连接：
+
+```c
+static const char *MQTT_BROKER_URI = "mqtt://broker.emqx.io:1883";
+```
+
+## 使用示例
+
+### 上位机代码示例
+
+```cpp
+#include "protocol/MqttChannel.h"
+#include "core/DeviceManager.h"
+
+using namespace HeteroLink;
+
+// 创建 MQTT 通道
+auto mqttChannel = std::make_shared<MqttChannel>();
+
+// 配置连接
+MqttConfig config;
+config.brokerHost = "broker.emqx.io";
+config.brokerPort = 1883;
+config.clientId = "heterolink_host_001";
+config.willTopic = "heterolink/subboard/status";
+config.willMessage = "offline";
+
+// 连接信号
+connect(mqttChannel.get(), &MqttChannel::connectionChanged,
+        [](bool connected) {
+    qDebug() << "MQTT connected:" << connected;
+});
+
+connect(mqttChannel.get(), &MqttChannel::deviceStatusReceived,
+        [](const QString& deviceId, bool online) {
+    qDebug() << "Device" << deviceId << "online:" << online;
+});
+
+connect(mqttChannel.get(), &MqttChannel::telemetryReceived,
+        [](const QString& deviceId, const QString& data) {
+    qDebug() << "Telemetry from" << deviceId << ":" << data;
+});
+
+// 连接 Broker
+mqttChannel->connect(config);
+
+// 订阅所有设备状态
+mqttChannel->subscribeAllDeviceStatus();
+
+// 订阅特定设备命令
+mqttChannel->subscribeDeviceCommands("device_001");
+
+// 发布命令到设备
+mqttChannel->publishCommand("device_001", R"({"cmd":"restart"})");
+```
+
+### ESP32 下位机代码示例
+
+```c
+#include "mqtt_client.h"
+#include "esp_log.h"
+
+static const char *TAG = "mqtt";
+
+static esp_mqtt_client_handle_t mqtt_client;
+
+static void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
+                               int32_t event_id, void *event_data)
+{
+    esp_mqtt_event_handle_t event = event_data;
+    
+    switch (event->event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "MQTT connected");
+            // 订阅命令 Topic
+            esp_mqtt_client_subscribe(mqtt_client, 
+                "heterolink/subboard/subboard_001/command", 1);
+            // 发布在线状态
+            esp_mqtt_client_publish(mqtt_client,
+                "heterolink/subboard/subboard_001/status",
+                "online", 0, 1, true);
+            break;
+            
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT disconnected");
+            break;
+            
+        case MQTT_EVENT_DATA:
+            ESP_LOGI(TAG, "Received command on topic %.*s",
+                event->topic_len, event->topic);
+            // 处理命令...
+            break;
+    }
+}
+
+void mqtt_app_start(void)
+{
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker = {
+            .address = {
+                .uri = "mqtt://broker.emqx.io:1883"
+            }
+        },
+        .credentials = {
+            .client_id = "heterolink_subboard_001"
+        },
+        .session = {
+            .last_will = {
+                .topic = "heterolink/subboard/subboard_001/status",
+                .msg = "offline",
+                .qos = 1,
+                .retain = true
+            }
+        }
+    };
+    
+    mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, 
+                                   mqtt_event_handler, NULL);
+    esp_mqtt_client_start(mqtt_client);
+}
+```
+
+## 公共 Broker 推荐
+
+### 测试用公共 Broker
+
+| Broker | 地址 | 端口 | TLS |
+|--------|------|------|-----|
+| EMQX Public | broker.emqx.io | 1883 | 8883 |
+| HiveMQ Public | broker.hivemq.com | 1883 | 8883 |
+| Mosquitto Test | test.mosquitto.org | 1883 | 8883 |
+
+⚠️ **注意**: 公共 Broker 仅用于测试，生产环境请部署私有 Broker。
+
+## 部署私有 Broker
+
+### 使用 Docker 部署 EMQX
+
+```bash
+# 启动 EMQX
+docker run -d --name emqx \
+  -p 1883:1883 \
+  -p 8083:8083 \
+  -p 8084:8084 \
+  -p 8883:8883 \
+  -p 18083:18083 \
+  emqx/emqx:latest
+
+# 访问 Dashboard
+# http://localhost:18083
+# 默认账号：admin / public
+```
+
+### 使用 Docker 部署 Mosquitto
+
+```bash
+# 创建配置文件
+mkdir -p mosquitto/config
+cat > mosquitto/config/mosquitto.conf << EOF
+listener 1883
+allow_anonymous true
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+EOF
+
+# 启动 Mosquitto
+docker run -d --name mosquitto \
+  -p 1883:1883 \
+  -v $(pwd)/mosquitto/config:/mosquitto/config \
+  -v $(pwd)/mosquitto/data:/mosquitto/data \
+  -v $(pwd)/mosquitto/log:/mosquitto/log \
+  eclipse-mosquitto:latest
+```
+
+## 调试技巧
+
+### 使用 MQTTX 客户端测试
+
+1. 下载并安装 [MQTTX](https://mqttx.app/)
+2. 创建新连接，配置 Broker 地址
+3. 订阅 `heterolink/subboard/#` 查看所有消息
+4. 手动发布消息测试
+
+### 使用 mosquitto_sub/mosquitto_pub
+
+```bash
+# 订阅所有消息
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/#" -v
+
+# 发布设备状态
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/device_001/status" \
+  -m "online" -q 1 -r
+
+# 发布命令
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/device_001/command" \
+  -m '{"cmd":"restart"}' -q 1
+```
+
+### 查看上位机日志
+
+```bash
+# 运行上位机时查看日志
+./heterolink-host --verbose
+
+# 日志输出示例
+[INFO] MQTT connecting to broker.emqx.io:1883
+[INFO] MQTT connected
+[INFO] MQTT subscribed: heterolink/subboard/+/status
+[INFO] Device status via MQTT: device_001 online=true
+```
+
+## 故障排查
+
+### 问题：无法连接到 Broker
+
+**检查清单**:
+- [ ] Broker 地址和端口是否正确
+- [ ] 防火墙是否开放 1883 端口
+- [ ] Broker 是否正在运行
+- [ ] 网络是否可达
+
+**解决方案**:
+```bash
+# 测试 Broker 可达性
+telnet broker.emqx.io 1883
+
+# 检查 Broker 状态
+docker ps | grep emqx
+```
+
+### 问题：收不到设备消息
+
+**检查清单**:
+- [ ] Topic 格式是否正确
+- [ ] 订阅是否成功
+- [ ] 设备是否已上线
+- [ ] QoS 设置是否匹配
+
+**解决方案**:
+```bash
+# 使用 MQTTX 查看是否有消息发布
+# 检查上位机订阅列表
+```
+
+### 问题：设备频繁上下线
+
+**可能原因**:
+- WiFi 信号不稳定
+- Broker 负载过高
+- Keepalive 设置过短
+
+**解决方案**:
+- 调整 MQTT Keepalive 时间（建议 60 秒）
+- 检查 WiFi 信号强度
+- 增加重连退避时间
+
+## 安全建议
+
+### 生产环境部署
+
+1. **启用 TLS 加密**
+   - 使用端口 8883
+   - 配置 CA 证书验证
+
+2. **启用认证**
+   - 配置用户名/密码
+   - 或使用客户端证书
+
+3. **访问控制**
+   - 配置 Topic 权限
+   - 限制客户端订阅/发布权限
+
+4. **网络隔离**
+   - 部署在内网
+   - 配置防火墙规则
+
+## 性能优化
+
+### 大批量设备管理
+
+1. **使用通配符订阅**
+   ```
+   heterolink/subboard/+/status  # 订阅所有设备状态
+   heterolink/subboard/+/telemetry  # 订阅所有设备遥测
+   ```
+
+2. **消息去重**
+   - 利用 Retain 消息特性
+   - 缓存最新状态
+
+3. **批量处理**
+   - 合并遥测数据发布
+   - 减少发布频率
+
+## 参考资料
+
+- [Qt MQTT 模块文档](https://doc.qt.io/qt-6/qtmqtt-index.html)
+- [EMQX 文档](https://www.emqx.com/zh/docs)
+- [MQTT 协议规范](https://mqtt.org/documentation)
+- [ESP-IDF MQTT 示例](https://github.com/espressif/esp-idf/tree/master/examples/protocols/mqtt)
