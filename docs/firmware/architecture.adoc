@@ -1,12 +1,10 @@
-# HeteroLink 固件架构
+= HeteroLink 固件架构
 
 ESP32 固件系统设计文档。
 
----
+== 🏗️ 系统架构
 
-## 🏗️ 系统架构
-
-```
+....
 ┌─────────────────────────────────────────────────────────────┐
 │                    应用层 (Application)                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
@@ -30,13 +28,11 @@ ESP32 固件系统设计文档。
 │  │              │  │              │  │                  │   │
 │  └──────────────┘  └──────────────┘  └─────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
-```
+....
 
----
+== 📦 组件结构
 
-## 📦 组件结构
-
-```
+....
 firmware/esp32/subboard/
 ├── main/                      # 主应用
 │   ├── app_main.c            # 程序入口
@@ -94,15 +90,13 @@ firmware/esp32/subboard/
     ├── test_mqtt.c
     ├── test_uart.c
     └── test_spi.c
-```
+....
 
----
+== 🔄 数据流
 
-## 🔄 数据流
+=== 远端通道 (MQTT over WiFi)
 
-### 远端通道 (MQTT over WiFi)
-
-```
+....
 传感器数据
     ↓
 [ADC/GPIO 采集]
@@ -112,11 +106,11 @@ firmware/esp32/subboard/
 [MQTT Publish]
     ↓
 WiFi → MQTT Broker → 上位机
-```
+....
 
-### 近端通道 (UART 二进制)
+=== 近端通道 (UART 二进制)
 
-```
+....
 目标设备
     ↓
 [UART 接收]
@@ -126,11 +120,11 @@ WiFi → MQTT Broker → 上位机
 [数据处理]
     ↓
 [转发/响应]
-```
+....
 
-### 板间通道 (SPI+DMA)
+=== 板间通道 (SPI+DMA)
 
-```
+....
 目标主板
     ↓
 [SPI 接口]
@@ -140,15 +134,13 @@ WiFi → MQTT Broker → 上位机
 [共享内存]
     ↓
 [高速数据交换]
-```
+....
 
----
+== 📡 通信协议
 
-## 📡 通信协议
+=== MQTT Topic 规范
 
-### MQTT Topic 规范
-
-```
+....
 # 设备状态
 heterolink/subboard/{device_id}/status
   - Payload: "online" | "offline"
@@ -172,24 +164,22 @@ heterolink/subboard/{device_id}/alert
   - Payload: JSON {"type": "...", "message": "..."}
   - QoS: 1
   - Retain: false
-```
+....
 
-### UART 帧格式
+=== UART 帧格式
 
-```
+....
 ┌────────┬────────┬────────┬──────────┬────────┬──────────┐
 │ Preamble│ Type   │ Length │ Payload  │ CRC16  │ Postamble│
 │ 0xAA   │ 1 byte │ 2 bytes│ N bytes  │ 2 bytes│ 0x55     │
 └────────┴────────┴────────┴──────────┴────────┴──────────┘
-```
+....
 
----
+== ⚙️ 配置选项
 
-## ⚙️ 配置选项
+=== 通过 menuconfig 配置
 
-### 通过 menuconfig 配置
-
-```
+....
 HeteroLink Configuration →
     WiFi Configuration →
         WiFi SSID
@@ -209,11 +199,12 @@ HeteroLink Configuration →
     Debug Configuration →
         Log Level
         Enable Debug Output
-```
+....
 
-### sdkconfig.defaults 示例
+=== sdkconfig.defaults 示例
 
-```ini
+[source,ini]
+----
 # WiFi 配置
 CONFIG_HETERO_WIFI_SSID="MyWiFi"
 CONFIG_HETERO_WIFI_PASSWORD="password123"
@@ -228,15 +219,14 @@ CONFIG_HETERO_DATA_UPLOAD_INTERVAL=1000
 
 # 调试配置
 CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
-```
+----
 
----
+== 🧪 测试策略
 
-## 🧪 测试策略
+=== 单元测试
 
-### 单元测试
-
-```c
+[source,c]
+----
 // tests/test_mqtt.c
 #include "unity.h"
 #include "mqtt_client.h"
@@ -257,23 +247,22 @@ void test_mqtt_init(void) {
 void test_mqtt_publish(void) {
     // ...
 }
-```
+----
 
-### 集成测试
+=== 集成测试
 
-```bash
+[source,bash]
+----
 # 运行所有测试
 idf.py test
 
 # 运行特定测试
 idf.py test --test-filter mqtt
-```
+----
 
----
+== 📊 内存布局
 
-## 📊 内存布局
-
-```
+....
 ┌─────────────────┐ 0x40000000
 │   DRAM (Data)   │  ~160KB
 ├─────────────────┤
@@ -287,40 +276,37 @@ idf.py test --test-filter mqtt
 ├─────────────────┤
 │   Flash (PHY)   │  ~4KB
 └─────────────────┘
-```
+....
 
----
+== 🔒 安全特性
 
-## 🔒 安全特性
+=== 当前支持
 
-### 当前支持
+* ✅ WPA2/WPA3 WiFi 加密
+* ✅ MQTT 认证 (用户名/密码)
+* ✅ 安全启动 (可选)
 
-- ✅ WPA2/WPA3 WiFi 加密
-- ✅ MQTT 认证 (用户名/密码)
-- ✅ 安全启动 (可选)
+=== 计划中
 
-### 计划中
+* 🟡 MQTT over TLS (SSL/TLS)
+* 🟡 Flash 加密
+* 🟡 安全启动 v2
+* 🟡 OTA 签名验证
 
-- 🟡 MQTT over TLS (SSL/TLS)
-- 🟡 Flash 加密
-- 🟡 安全启动 v2
-- 🟡 OTA 签名验证
+== 📚 开发指南
 
----
+=== 添加新功能
 
-## 📚 开发指南
+. 在 `components/` 创建新组件
+. 实现功能代码
+. 编写单元测试
+. 更新文档
+. 提交 PR
 
-### 添加新功能
+=== 调试技巧
 
-1. 在 `components/` 创建新组件
-2. 实现功能代码
-3. 编写单元测试
-4. 更新文档
-5. 提交 PR
-
-### 调试技巧
-
-```c
+[source,c]
+----
 // 使用 ESP_LOG 宏
 #include "esp_log.h"
 
@@ -332,17 +318,15 @@ void my_function(void) {
     ESP_LOGW(TAG, "Warning message");
     ESP_LOGE(TAG, "Error message");
 }
-```
+----
 
----
+== 🔗 相关文档
 
-## 🔗 相关文档
+* link:mqtt-protocol.adoc[MQTT 协议规范]
+* link:uart-protocol.adoc[UART 协议规范]
+* link:configuration.adoc[配置指南]
+* link:api-reference.adoc[API 参考]
 
-- [MQTT 协议规范](mqtt-protocol.md)
-- [UART 协议规范](uart-protocol.md)
-- [配置指南](configuration.md)
-- [API 参考](api-reference.md)
+'''
 
----
-
-**最后更新**: 2026-03-21
+*最后更新*: 2026-03-21

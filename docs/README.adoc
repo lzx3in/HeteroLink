@@ -1,0 +1,138 @@
+= HeteroLink 文档导航
+
+欢迎使用 HeteroLink 文档！
+
+== 🚀 快速开始
+
+*第一次使用？* 从这里开始：
+
+* link:getting-started/installation.adoc[📦 安装指南] - 环境准备
+* link:getting-started/quick-start.adoc[⚡ 快速上手] - 10 分钟入门
+* link:getting-started/troubleshooting.adoc[❓ 问题排查] - 常见问题
+
+== 📚 文档分类
+
+=== 🔧 硬件文档
+
+了解 HeteroLink 硬件设计和兼容性：
+
+* link:hardware/index.adoc[硬件概览] - 系统架构
+* link:hardware/subboard/overview.adoc[子板设计] - 协处理器子板
+* link:hardware/compatibility.adoc[芯片兼容性] - 支持的 ESP32 型号
+* link:hardware/subboard/assembly.adoc[组装指南] - 硬件组装
+
+=== 💾 固件文档
+
+ESP32 固件开发和配置：
+
+* link:firmware/index.adoc[固件概览] - 固件架构
+* link:firmware/architecture.adoc[架构设计] - 系统设计
+* link:firmware/configuration.adoc[配置指南] - 编译配置
+* link:firmware/api-reference.adoc[API 参考] - 接口文档
+* link:firmware/mqtt-protocol.adoc[MQTT 协议] - 远端通信
+* link:firmware/uart-protocol.adoc[UART 协议] - 近端通信
+
+=== 🖥️ 上位机文档
+
+Qt 上位机和工具链：
+
+* link:software/index.adoc[上位机概览] - 软件架构
+* link:software/host-app.adoc[Qt 应用] - 桌面应用
+* link:software/cli-tools.adoc[命令行工具] - CLI 工具
+* link:software/python-lib.adoc[Python 库] - Python SDK
+
+=== 📖 示例项目
+
+学习和测试用的示例代码：
+
+* link:../examples/README.adoc[示例索引] - 所有示例
+* link:../examples/basic-telemetry/[基础遥测] - 数据采集
+* link:../examples/mqtt-control/[MQTT 控制] - 远程控制
+* link:../examples/spi-master/[SPI 主站] - 高速传输
+* link:../examples/motor-control/[电机控制] - 电机参数整定
+* link:../examples/data-logger/[数据记录器] - 日志记录
+
+=== 🛠️ 开发指南
+
+参与项目开发：
+
+* link:development/contributing.adoc[贡献指南] - 如何贡献
+* link:development/coding-style.adoc[代码规范] - 编码标准
+* link:development/testing.adoc[测试指南] - 测试方法
+* link:development/release.adoc[发布流程] - 版本发布
+
+== 📊 按角色查看
+
+=== 新手用户
+. link:getting-started/installation.adoc[安装指南]
+. link:getting-started/quick-start.adoc[快速上手]
+. link:../examples/basic-telemetry/[基础示例]
+
+=== 硬件开发者
+. link:hardware/index.adoc[硬件概览]
+. link:hardware/subboard/overview.adoc[子板设计]
+. link:hardware/compatibility.adoc[芯片兼容性]
+
+=== 固件开发者
+. link:firmware/architecture.adoc[固件架构]
+. link:firmware/configuration.adoc[配置指南]
+. link:firmware/api-reference.adoc[API 参考]
+
+=== 应用开发者
+. link:software/index.adoc[上位机概览]
+. link:firmware/mqtt-protocol.adoc[MQTT 协议]
+. link:../examples/README.adoc[示例项目]
+
+=== 贡献者
+. link:development/contributing.adoc[贡献指南]
+. link:development/coding-style.adoc[代码规范]
+. link:development/testing.adoc[测试指南]
+
+== 🔗 外部资源
+
+* *ESP-IDF 文档*: https://docs.espressif.com/projects/esp-idf/
+* *ESP32 技术参考*: https://www.espressif.com/en/products/socs/esp32
+* *MQTT 协议*: https://mqtt.org/
+* *GitHub 仓库*: https://github.com/HeteroLink/HeteroLink
+
+== 📝 文档维护
+
+=== 更新文档
+
+发现文档问题？欢迎改进：
+
+. 点击页面右上角的 "Edit this page"
+. 提交修改
+. 等待审核合并
+
+=== 文档规范
+
+* 使用 AsciiDoc 格式
+* 代码示例添加语法高亮
+* 图片放在 `images/` 目录
+* 保持中英文术语一致
+
+=== 构建文档
+
+[source,bash]
+----
+# 安装依赖
+pip install mkdocs mkdocs-material
+
+# 本地预览
+cd docs
+mkdocs serve
+
+# 构建静态站点
+mkdocs build
+----
+
+== 📞 需要帮助？
+
+* 🐛 https://github.com/HeteroLink/HeteroLink/issues[报告问题]
+* 💡 https://github.com/HeteroLink/HeteroLink/discussions[功能建议]
+* 💬 https://github.com/HeteroLink/HeteroLink/discussions[社区讨论]
+
+'''
+
+*最后更新*: 2026-03-21

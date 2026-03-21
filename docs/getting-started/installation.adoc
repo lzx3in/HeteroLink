@@ -1,0 +1,279 @@
+= 安装指南
+
+本指南将帮助你安装 HeteroLink 开发环境。
+
+== 📋 系统要求
+
+=== 操作系统
+
+* ✅ *Linux*: Ubuntu 20.04+, Debian 11+, Fedora 35+
+* ✅ *macOS*: 10.15 (Catalina) 或更高版本
+* ✅ *Windows*: Windows 10/11 (推荐使用 WSL2)
+
+=== 硬件要求
+
+* CPU: 双核 2.0 GHz 或更高
+* 内存：4GB 或更高 (推荐 8GB)
+* 磁盘：至少 10GB 可用空间
+
+== 1️⃣ 安装 ESP-IDF
+
+=== 方法 A: 使用 EIM (推荐)
+
+EIM (Espressif IDE Manager) 是官方推荐的安装工具。
+
+[source,bash]
+----
+# 克隆 HeteroLink 项目
+git clone https://github.com/HeteroLink/HeteroLink.git
+cd HeteroLink
+
+# 运行安装脚本
+cd scripts
+./install-esp-idf.sh
+----
+
+安装脚本会自动：
+* 下载 ESP-IDF v5.3
+* 安装工具链 (xtensa-esp32-elf, riscv32-esp-elf 等)
+* 安装 Python 依赖
+* 配置环境变量
+
+=== 方法 B: 手动安装
+
+[source,bash]
+----
+# 1. 创建安装目录
+mkdir -p ~/esp
+cd ~/esp
+
+# 2. 克隆 ESP-IDF
+git clone -b v5.3 --recursive https://github.com/espressif/esp-idf.git
+
+# 3. 进入目录
+cd esp-idf
+
+# 4. 运行安装脚本
+./install.sh esp32 esp32s3 esp32c3 esp32c6
+
+# 5. 加载环境变量
+. export.sh
+----
+
+=== 方法 C: 使用 Docker
+
+[source,bash]
+----
+# 拉取 ESP-IDF Docker 镜像
+docker pull espressif/idf:v5.3
+
+# 运行容器
+docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3 idf.py build
+----
+
+== 2️⃣ 验证安装
+
+=== 检查 ESP-IDF 版本
+
+[source,bash]
+----
+. $HOME/esp/esp-idf/export.sh
+idf.py --version
+----
+
+预期输出：
+....
+ESP-IDF v5.3.2
+....
+
+=== 检查工具链
+
+[source,bash]
+----
+xtensa-esp32-elf-gcc --version
+riscv32-esp-elf-gcc --version
+----
+
+=== 检查 Python 依赖
+
+[source,bash]
+----
+python -m pip list | grep -i esp
+----
+
+== 3️⃣ 安装 USB 驱动
+
+=== Linux
+
+大多数 Linux 发行版无需额外驱动。如需串口权限：
+
+[source,bash]
+----
+# 添加用户到 dialout 组
+sudo usermod -a -G dialout $USER
+
+# 重新登录或重启
+----
+
+=== macOS
+
+macOS 通常无需额外驱动。CH340/CP210x 芯片：
+
+[source,bash]
+----
+# 安装 CH340 驱动
+brew install --cask wch-ch34x-usb-serial-driver
+
+# 或 CP210x 驱动
+brew install --cask silicon-labs-vcp-driver
+----
+
+=== Windows
+
+[source,bash]
+----
+# 使用 Zadig 工具安装 USB 驱动
+# 下载地址：https://zadig.akeo.ie/
+----
+
+== 4️⃣ 安装可选工具
+
+=== MQTT 客户端
+
+用于测试 MQTT 连接：
+
+[source,bash]
+----
+# Linux (Debian/Ubuntu)
+sudo apt install mosquitto-clients
+
+# macOS
+brew install mosquitto
+
+# Windows
+# 从 https://mosquitto.org/download/ 下载
+----
+
+=== 串口监视器
+
+[source,bash]
+----
+# picocom (轻量级)
+sudo apt install picocom  # Linux
+brew install picocom      # macOS
+
+# 或使用 idf_monitor (ESP-IDF 自带)
+idf_monitor -p /dev/ttyUSB0 build/my_project.elf
+----
+
+=== Git 工具
+
+[source,bash]
+----
+# Git LFS (大文件支持)
+git lfs install
+
+# GitHub CLI
+gh auth login
+----
+
+== 5️⃣ 配置环境变量
+
+=== 永久配置 (推荐)
+
+将 ESP-IDF 环境变量添加到 shell 配置文件：
+
+[source,bash]
+----
+# 添加到 ~/.bashrc 或 ~/.zshrc
+echo 'export IDF_PATH="$HOME/esp/esp-idf"' >> ~/.bashrc
+echo '. $IDF_PATH/export.sh' >> ~/.bashrc
+
+# 重新加载
+source ~/.bashrc
+----
+
+=== 验证配置
+
+[source,bash]
+----
+# 新建终端窗口，运行
+idf.py --version
+----
+
+== ✅ 安装检查清单
+
+* [ ] ESP-IDF v5.3+ 已安装
+* [ ] 工具链已安装 (xtensa/riscv)
+* [ ] Python 依赖已安装
+* [ ] USB 驱动已安装 (如需要)
+* [ ] 环境变量已配置
+* [ ] `idf.py --version` 正常工作
+
+== 🆘 常见问题
+
+=== 1. 下载速度慢
+
+*问题*: 克隆 ESP-IDF 时速度慢
+
+*解决*: 使用镜像源
+[source,bash]
+----
+# 使用清华镜像
+export GIT_SUBMODULE_STRATEGY=recursive
+git clone -b v5.3 --recursive https://mirrors.tuna.tsinghua.edu.cn/git/esp/esp-idf.git
+----
+
+=== 2. 权限错误
+
+*问题*: 无法访问串口设备
+
+*解决*:
+[source,bash]
+----
+# Linux: 添加用户到 dialout 组
+sudo usermod -a -G dialout $USER
+# 重新登录
+
+# 或临时解决
+sudo chmod 666 /dev/ttyUSB0
+----
+
+=== 3. Python 依赖冲突
+
+*问题*: pip 安装失败
+
+*解决*: 使用虚拟环境
+[source,bash]
+----
+cd esp-idf
+python -m venv .venv
+source .venv/bin/activate
+./install.sh
+----
+
+=== 4. 磁盘空间不足
+
+*问题*: 安装过程中磁盘空间不足
+
+*解决*: ESP-IDF 完整安装需要约 10GB。清理空间或选择最小安装：
+[source,bash]
+----
+./install.sh esp32c6  # 只安装目标芯片工具链
+----
+
+== 📚 下一步
+
+安装完成后：
+
+. ✅ link:quick-start.adoc[快速上手] - 编译和烧录第一个程序
+. 📖 link:../firmware/architecture.adoc[架构设计] - 了解系统架构
+. 🔧 link:../examples/README.adoc[示例项目] - 实践练习
+
+== 🔗 参考资源
+
+* https://docs.espressif.com/projects/esp-idf/en/v5.3/[ESP-IDF 官方文档]
+* https://www.espressif.com/en/products/socs/esp32[ESP32 技术参考]
+* https://github.com/HeteroLink/HeteroLink[HeteroLink GitHub]
+
+**遇到问题？** link:troubleshooting.adoc[查看问题排查] 或 https://github.com/HeteroLink/HeteroLink/issues[创建 Issue]

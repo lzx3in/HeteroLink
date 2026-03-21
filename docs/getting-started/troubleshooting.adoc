@@ -1,0 +1,300 @@
+= 问题排查指南
+
+常见问题和解决方案。
+
+== 🔧 ESP-IDF 相关问题
+
+=== 1. `idf.py: command not found`
+
+*问题*: 找不到 idf.py 命令
+
+*原因*: ESP-IDF 环境变量未加载
+
+*解决*:
+[source,bash]
+----
+# 临时加载
+. $HOME/esp/esp-idf/export.sh
+
+# 永久配置 (添加到 ~/.bashrc 或 ~/.zshrc)
+echo '. $HOME/esp/esp-idf/export.sh' >> ~/.bashrc
+source ~/.bashrc
+----
+
+=== 2. 编译失败：`xtensa-esp32-elf-gcc: not found`
+
+*问题*: 工具链未找到
+
+*原因*: 工具链未安装或路径错误
+
+*解决*:
+[source,bash]
+----
+# 重新安装工具链
+cd $IDF_PATH
+./install.sh esp32 esp32s3 esp32c3 esp32c6
+. export.sh
+----
+
+=== 3. Python 依赖错误
+
+*问题*: `ModuleNotFoundError: No module named 'serial'`
+
+*解决*:
+[source,bash]
+----
+# 激活 ESP-IDF 环境
+. $IDF_PATH/export.sh
+
+# 重新安装 Python 依赖
+python -m pip install --upgrade pip
+python -m pip install -r $IDF_PATH/requirements.txt
+----
+
+== 🔌 烧录问题
+
+=== 1. 无法打开串口设备
+
+*错误*: `Permission denied: /dev/ttyUSB0`
+
+*原因*: 串口权限不足
+
+*解决 (Linux)*:
+[source,bash]
+----
+# 添加用户到 dialout 组
+sudo usermod -a -G dialout $USER
+
+# 重新登录或重启
+# 或临时解决
+sudo chmod 666 /dev/ttyUSB0
+----
+
+*解决 (macOS)*:
+[source,bash]
+----
+# 检查设备权限
+ls -l /dev/cu.usbserial*
+
+# 添加权限
+sudo chmod 666 /dev/cu.usbserial*
+----
+
+=== 2. 烧录失败：`Failed to connect to ESP32`
+
+*可能原因*:
+* 串口线连接不良
+* 电源不足
+* BOOT 模式不正确
+
+*解决*:
+. 检查 USB 线连接
+. 尝试不同的 USB 端口
+. 按住 BOOT 键，按下 RESET 键，然后开始烧录
+. 释放 BOOT 键
+
+[source,bash]
+----
+# 使用更低波特率
+idf.py -p /dev/ttyUSB0 -b 115200 flash
+----
+
+=== 3. 烧录后无法启动
+
+*问题*: 设备烧录成功但无法启动
+
+*解决*:
+[source,bash]
+----
+# 检查启动模式
+# 确保 GPIO0 在启动时为高电平
+
+# 重新烧录
+idf.py -p /dev/ttyUSB0 flash
+
+# 手动复位
+# 按下 RESET 键
+----
+
+== 📡 WiFi 连接问题
+
+=== 1. WiFi 连接失败
+
+*错误*: `WiFi connect failed`
+
+*检查清单*:
+* [ ] SSID 和密码正确
+* [ ] WiFi 信号强度足够
+* [ ] 路由器未启用 MAC 过滤
+* [ ] 使用 2.4GHz 网络 (ESP32 不支持 5GHz)
+
+*解决*:
+[source,bash]
+----
+# 通过 menuconfig 重新配置
+idf.py menuconfig
+
+# 导航到:
+# HeteroLink Configuration → WiFi SSID/Password
+----
+
+=== 2. WiFi 频繁断开
+
+*可能原因*:
+* 电源不足
+* WiFi 信号弱
+* 路由器问题
+
+*解决*:
+. 使用外部电源 (500mA+)
+. 靠近路由器
+. 检查路由器日志
+
+== 🌐 MQTT 连接问题
+
+=== 1. MQTT 连接失败
+
+*错误*: `MQTT connect failed`
+
+*检查清单*:
+* [ ] Broker 地址和端口正确
+* [ ] 网络连通性正常
+* [ ] Broker 未启用认证 (或凭据正确)
+* [ ] 防火墙未阻止连接
+
+*测试 Broker 连通性*:
+[source,bash]
+----
+# 使用 mosquitto 测试
+mosquitto_sub -h broker.emqx.io -t "test" -v
+
+# 如果失败，检查网络
+ping broker.emqx.io
+----
+
+=== 2. MQTT 消息未收到
+
+*可能原因*:
+* Topic 订阅错误
+* QoS 级别不匹配
+* 消息格式错误
+
+*调试步骤*:
+[source,bash]
+----
+# 订阅所有 topic
+mosquitto_sub -h broker.emqx.io -t "heterolink/#" -v
+
+# 检查 topic 拼写
+# heterolink/subboard/status (正确)
+# heterolink/subbord/status (错误)
+----
+
+== 🐛 固件问题
+
+=== 1. 程序崩溃：`Guru Meditation Error`
+
+*原因*: 内存访问错误、栈溢出等
+
+*解决*:
+[source,bash]
+----
+# 启用详细日志
+idf.py menuconfig
+# Component config → ESP System Settings → Enable panic handler
+
+# 查看崩溃详情
+idf.py -p /dev/ttyUSB0 monitor
+
+# 使用 addr2line 解析地址
+xtensa-esp32-elf-addr2line -pfia build/my_project.elf 0x400d1234
+----
+
+=== 2. 内存不足：`Heap memory exhausted`
+
+*解决*:
+[source,bash]
+----
+# 检查内存使用
+idf.py monitor
+# 查看 heap_caps_get_free_size() 输出
+
+# 优化代码
+# - 减少全局变量
+# - 使用动态内存分配
+# - 降低任务栈大小
+----
+
+=== 3. 看门狗复位：`Task watchdog got triggered`
+
+*原因*: 任务执行时间过长
+
+*解决*:
+[source,c]
+----
+// 在长循环中添加延时
+vTaskDelay(10 / portTICK_PERIOD_MS);
+
+// 或禁用看门狗 (不推荐)
+// esp_task_wdt_deinit();
+----
+
+== 🛠️ 调试技巧
+
+=== 1. 启用详细日志
+
+[source,bash]
+----
+idf.py menuconfig
+# Component config → Log output → Debug
+----
+
+=== 2. 使用 JTAG 调试
+
+[source,bash]
+----
+# 需要 JTAG 适配器
+idf.py -p /dev/ttyUSB0 debug
+----
+
+=== 3. 添加调试输出
+
+[source,c]
+----
+#include "esp_log.h"
+
+static const char *TAG = "my_app";
+
+void app_main(void) {
+    ESP_LOGI(TAG, "Starting application");
+    ESP_LOGD(TAG, "Debug info: %d", value);
+    ESP_LOGE(TAG, "Error occurred!");
+}
+----
+
+== 📞 获取帮助
+
+=== 1. 搜索现有 Issue
+
+https://github.com/HeteroLink/HeteroLink/issues[GitHub Issues]
+
+=== 2. 创建新 Issue
+
+提供以下信息：
+* 问题描述
+* 复现步骤
+* ESP32 型号
+* ESP-IDF 版本
+* 相关日志
+
+=== 3. 社区讨论
+
+https://github.com/HeteroLink/HeteroLink/discussions[GitHub Discussions]
+
+== 📚 更多资源
+
+* https://docs.espressif.com/projects/esp-idf/en/v5.3/troubleshooting/index.html[ESP-IDF 故障排除]
+* https://esp32.com/[ESP32 技术论坛]
+* link:../README.adoc[HeteroLink 文档]
+
+**问题仍未解决？** https://github.com/HeteroLink/HeteroLink/issues/new[创建 Issue] 并附上详细日志。
