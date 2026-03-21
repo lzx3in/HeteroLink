@@ -4,13 +4,21 @@
 
 == 🛠️ 配置方法
 
-=== 方法 1: menuconfig (推荐)
+=== 方法 1: menuconfig（推荐）
 
 [source,bash]
 ----
 cd firmware/esp32/subboard
 idf.py menuconfig
 ----
+
+**导航**:
+- 使用方向键浏览菜单
+- 按 Enter 进入子菜单
+- 按 Y/N 启用/禁用选项
+- 按 Esc 返回上级菜单
+- 按 S 保存配置
+- 按 Q 退出
 
 === 方法 2: 编辑 sdkconfig.defaults
 
@@ -23,9 +31,13 @@ vim sdkconfig.defaults
 idf.py reconfigure
 ----
 
+**优点**: 版本控制友好，适合团队协作
+
 === 方法 3: 直接编辑 sdkconfig
 
 ⚠️ **不推荐**: `sdkconfig` 是自动生成的，手动编辑可能在重新配置时被覆盖。
+
+**仅用于**: 临时测试，不提交到版本控制
 
 == 📋 配置选项详解
 
@@ -244,83 +256,119 @@ snprintf(topic, sizeof(topic), "%s%s/status",
 
 === 开发环境（调试模式）
 
+**特点**: 快速上报、详细日志、所有功能启用
+
 [source,ini]
 ----
-# WiFi
+# ==================== WiFi ====================
 CONFIG_HETERO_WIFI_SSID="DevWiFi"
 CONFIG_HETERO_WIFI_PASSWORD="devpass"
+CONFIG_HETERO_WIFI_AUTO_RECONNECT=y
 
-# MQTT
-CONFIG_HETERO_MQTT_BROKER_URI="mqtt://localhost"
+# ==================== MQTT ====================
+CONFIG_HETERO_MQTT_BROKER_URI="mqtt://broker.emqx.io"
 CONFIG_HETERO_MQTT_BROKER_PORT=1883
 CONFIG_HETERO_MQTT_CLIENT_ID="dev_subboard_001"
 
-# 设备
+# ==================== 设备 ====================
 CONFIG_HETERO_DEVICE_ID="dev_001"
-CONFIG_HETERO_DATA_UPLOAD_INTERVAL=100  # 快速上报
+CONFIG_HETERO_DATA_UPLOAD_INTERVAL=100  # 100ms 快速上报
 
-# 功能
+# ==================== 功能启用 ====================
 CONFIG_HETERO_ENABLE_UART_PROTOCOL=y
 CONFIG_HETERO_ENABLE_SPI_DMA=y
 CONFIG_HETERO_ENABLE_ADC_GPIO_PROBE=y
 
-# 调试
+# ==================== 调试 ====================
 CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
 CONFIG_HETERO_LOG_LEVEL=4
 ----
 
 === 生产环境（优化模式）
 
+**特点**: 节能、安全、最小日志
+
 [source,ini]
 ----
-# WiFi
+# ==================== WiFi ====================
 CONFIG_HETERO_WIFI_SSID="ProdWiFi"
 CONFIG_HETERO_WIFI_PASSWORD="prodpass"
+CONFIG_HETERO_WIFI_AUTO_RECONNECT=y
 
-# MQTT
+# ==================== MQTT ====================
 CONFIG_HETERO_MQTT_BROKER_URI="mqtt://mqtt.example.com"
-CONFIG_HETERO_MQTT_BROKER_PORT=8883  # TLS
+CONFIG_HETERO_MQTT_BROKER_PORT=8883  # TLS 端口
 CONFIG_HETERO_MQTT_CLIENT_ID="prod_subboard_001"
 CONFIG_HETERO_MQTT_USERNAME="device"
 CONFIG_HETERO_MQTT_PASSWORD="secure_password"
 
-# 设备
+# ==================== 设备 ====================
 CONFIG_HETERO_DEVICE_ID="prod_001"
-CONFIG_HETERO_DATA_UPLOAD_INTERVAL=5000  # 节能
+CONFIG_HETERO_DATA_UPLOAD_INTERVAL=5000  # 5 秒上报（节能）
 
-# 功能
+# ==================== 功能启用 ====================
 CONFIG_HETERO_ENABLE_UART_PROTOCOL=y
 CONFIG_HETERO_ENABLE_SPI_DMA=n  # 禁用未用功能
 CONFIG_HETERO_ENABLE_ADC_GPIO_PROBE=y
 
-# 调试
+# ==================== 调试 ====================
 CONFIG_LOG_DEFAULT_LEVEL_WARN=y
 CONFIG_HETERO_LOG_LEVEL=2
 ----
 
 === 最小配置（仅 MQTT）
 
+**特点**: 最小资源占用、基本功能
+
 [source,ini]
 ----
-# WiFi
+# ==================== WiFi ====================
 CONFIG_HETERO_WIFI_SSID="WiFi"
 CONFIG_HETERO_WIFI_PASSWORD="password"
 
-# MQTT
+# ==================== MQTT ====================
 CONFIG_HETERO_MQTT_BROKER_URI="mqtt://broker.emqx.io"
 CONFIG_HETERO_MQTT_CLIENT_ID="minimal_001"
 
-# 设备
+# ==================== 设备 ====================
 CONFIG_HETERO_DEVICE_ID="minimal_001"
-CONFIG_HETERO_DATA_UPLOAD_INTERVAL=10000
+CONFIG_HETERO_DATA_UPLOAD_INTERVAL=10000  # 10 秒上报
 
-# 功能（仅 MQTT）
+# ==================== 功能启用 ====================
 CONFIG_HETERO_ENABLE_UART_PROTOCOL=n
 CONFIG_HETERO_ENABLE_SPI_DMA=n
 CONFIG_HETERO_ENABLE_ADC_GPIO_PROBE=n
 
-# 调试
+# ==================== 调试 ====================
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+----
+
+=== 测试配置（UART 调试）
+
+**特点**: 启用 UART 协议、方便串口调试
+
+[source,ini]
+----
+# ==================== WiFi ====================
+CONFIG_HETERO_WIFI_SSID="TestWiFi"
+CONFIG_HETERO_WIFI_PASSWORD="testpass"
+
+# ==================== MQTT ====================
+CONFIG_HETERO_MQTT_BROKER_URI="mqtt://broker.emqx.io"
+CONFIG_HETERO_MQTT_CLIENT_ID="test_subboard_001"
+
+# ==================== 设备 ====================
+CONFIG_HETERO_DEVICE_ID="test_001"
+CONFIG_HETERO_DATA_UPLOAD_INTERVAL=1000
+
+# ==================== 功能启用 ====================
+CONFIG_HETERO_ENABLE_UART_PROTOCOL=y  # 启用 UART
+CONFIG_HETERO_ENABLE_SPI_DMA=n
+CONFIG_HETERO_ENABLE_ADC_GPIO_PROBE=y
+
+# ==================== 调试 ====================
+CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
+CONFIG_HETERO_LOG_LEVEL=4
 ----
 
 == 🔍 验证配置
@@ -339,17 +387,67 @@ idf.py build
 
 == ⚠️ 注意事项
 
+=== 必须遵守
+
 1. **Client ID 唯一性**: 每个设备必须有唯一的 `HETERO_MQTT_CLIENT_ID`
+   - 重复的 Client ID 会导致设备互相踢下线
+   - 建议使用：`{项目}_{设备类型}_{编号}` 格式
+   - 示例：`heterolink_subboard_001`
+
 2. **WiFi 频段**: ESP32 仅支持 2.4GHz WiFi
+   - 5GHz WiFi 无法连接
+   - 确保路由器开启了 2.4GHz 频段
+
 3. **内存限制**: 启用所有功能会增加内存占用
+   - 典型空闲堆：150-280KB
+   - 如果内存不足，禁用未使用的功能
+
 4. **功耗考虑**: 更短的上报间隔会增加功耗
+   - 电池供电：建议 ≥5000ms
+   - USB 供电：可设置为 100-1000ms
+
+=== 最佳实践
+
+- **开发阶段**: 使用 DEBUG 日志级别，方便排查问题
+- **生产部署**: 使用 WARN 或 INFO 级别，减少日志开销
+- **团队协作**: 使用 `sdkconfig.defaults` 管理配置，提交到版本控制
+- **多设备**: 为每个设备创建独立的配置文件
+
+=== 常见问题
+
+**Q: 配置修改后不生效？**
+
+A: 运行 `idf.py reconfigure` 重新生成 sdkconfig
+
+**Q: 如何恢复默认配置？**
+
+A: 删除 `sdkconfig` 文件，运行 `idf.py menuconfig` 重新配置
+
+**Q: 如何查看当前配置？**
+
+A: 运行 `idf.py read-project-config` 或查看 `sdkconfig` 文件
+
+**Q: 如何备份配置？**
+
+A: 运行 `idf.py save-defconfig` 保存为 defconfig 文件
 
 == 🔗 相关文档
 
-* link:architecture.adoc[固件架构]
-* link:../../getting-started/quick-start.adoc[快速开始]
-* link:../software/mqtt-guide.adoc[MQTT 使用指南]
+* link:architecture.adoc[固件架构] - 系统设计详解
+* link:index.md[固件文档索引] - 文档导航
+* link:../../getting-started/quick-start.adoc[快速开始] - 5 分钟上手
+* link:../software/mqtt-guide.adoc[MQTT 使用指南] - MQTT 配置详解
+* link:../software/protocol-spec.md[协议规范] - UART/MQTT 协议
+
+== 📝 更新日志
+
+- **2026-03-21**: 初始版本
+  - 完善配置选项说明
+  - 添加多种配置模板
+  - 补充常见问题解答
 
 ---
 
-*最后更新*: 2026-03-21
+**维护者**: HeteroLink Contributors  
+**版本**: 0.1.0  
+**最后更新**: 2026-03-21

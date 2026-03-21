@@ -2,6 +2,8 @@
 
 ESP32 协处理器子板固件，实现高速调试协处理器功能。
 
+> **状态**: ✅ 核心功能已完成 | 待硬件测试
+
 ## 📦 功能特性
 
 ### 已实现 ✅
@@ -9,29 +11,34 @@ ESP32 协处理器子板固件，实现高速调试协处理器功能。
 - **WiFi 连接管理**
   - 自动重连
   - 使用 `protocol_examples_common` 组件
+  - 支持 2.4GHz WiFi
   
 - **MQTT5 远端通道**
   - 设备状态上云（online/offline）
   - Last Will 遗嘱消息
-  - 远程控制命令订阅
-  - 遥测数据发布
-  - 告警推送
+  - 远程控制命令订阅（`heterolink/subboard/{id}/command`）
+  - 遥测数据发布（`heterolink/subboard/{id}/telemetry`）
+  - 告警推送（`heterolink/subboard/{id}/alarm`）
+  - JSON 格式数据封装
 
 - **UART 自定义二进制协议**（近端通道）
   - 帧格式：`0xAA [CMD] [LEN] [PAYLOAD] [CRC16] 0x55`
   - 波特率：921600
-  - 支持心跳、采集控制、遥测数据
+  - 支持心跳、采集控制、遥测数据、错误报告
+  - CRC16/MODBUS 校验
 
 - **ADC/GPIO 双模点测**
-  - 8 通道可配置
-  - ADC 模拟采集（12 位，多档衰减）
+  - 8 通道可配置（ADC 模拟/GPIO 数字）
+  - ADC 模拟采集（12 位，4 档衰减）
   - GPIO 数字探测（输入/输出）
+  - 支持连续采样和单次读取
   - 零代码即插即用
 
 - **SPI+DMA 高速数据传输**（板间通道）
   - 全双工通信
   - DMA 零拷贝传输
   - 最高 10MHz 时钟（可配置）
+  - 异步传输和回调支持
 
 ## 🏗️ 系统架构
 
@@ -51,6 +58,28 @@ ESP32 协处理器子板固件，实现高速调试协处理器功能。
 │  │ 近端通信      │  │ 板间通信      │  │ 双模点测        │   │
 │  └──────────────┘  └──────────────┘  └─────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   驱动层 (ESP-IDF HAL)                       │
+│  WiFi  │  MQTT  │  UART  │  SPI  │  DMA  │  ADC  │  GPIO   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 数据流
+
+**远端通道 (MQTT over WiFi)**:
+```
+ADC/GPIO 采集 → 数据封装 → MQTT Publish → WiFi → Broker → 上位机
+```
+
+**近端通道 (UART 二进制)**:
+```
+上位机 → UART 接收 → 帧解析 → 数据处理 → 响应/转发
+```
+
+**板间通道 (SPI+DMA)**:
+```
+目标主板 → SPI 接口 → DMA 传输 → 共享内存 → 高速数据交换
 ```
 
 ## 📁 项目结构
@@ -65,21 +94,29 @@ firmware/esp32/subboard/
 │
 ├── components/                # 自定义组件
 │   ├── spi_dma/              # SPI+DMA 驱动
-│   │   ├── include/spi_dma.h
+│   │   ├── include/
+│   │   │   └── spi_dma.h
 │   │   ├── spi_dma.c
 │   │   └── CMakeLists.txt
 │   │
 │   ├── uart_protocol/        # UART 协议栈
-│   │   ├── include/uart_protocol.h
+│   │   ├── include/
+│   │   │   └── uart_protocol.h
 │   │   ├── uart_protocol.c
 │   │   └── CMakeLists.txt
 │   │
 │   └── adc_gpio_probe/       # ADC/GPIO 探测
-│       ├── include/adc_gpio_probe.h
+│       ├── include/
+│       │   └── adc_gpio_probe.h
 │       ├── adc_gpio_probe.c
 │       └── CMakeLists.txt
 │
+├── docs/                      # 固件文档
+│   └── QUICK_START.adoc
+│
 ├── sdkconfig.defaults        # 默认配置
+├── sdkconfig                 # 自动生成配置
+├── partitions.csv            # 分区表
 └── CMakeLists.txt            # 项目配置
 ```
 
@@ -126,14 +163,24 @@ idf.py -p /dev/ttyUSB0 monitor
 ```bash
 # 使用 mosquitto 订阅设备状态
 mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/status" -v
+# 预期输出：heterolink/subboard/subboard_001/status {"state":"online",...}
 
 # 订阅遥测数据
 mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/telemetry" -v
+# 预期输出：heterolink/subboard/subboard_001/telemetry {"ts":...,"channels":{...}}
+
+# 订阅告警通知
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/alarm" -v
 
 # 发送控制命令
 mosquitto_pub -h broker.emqx.io \
   -t "heterolink/subboard/subboard_001/command" \
   -m '{"cmd": "start"}'
+  
+# 停止采集
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/subboard_001/command" \
+  -m '{"cmd": "stop"}'
 ```
 
 ## 📡 通信协议
@@ -163,6 +210,14 @@ mosquitto_pub -h broker.emqx.io \
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
+**帧字段说明**:
+- **帧头**: `0xAA` (固定)
+- **命令字**: 1 字节，定义命令类型
+- **数据长度**: 2 字节，小端序，表示载荷长度
+- **数据载荷**: N 字节，具体数据
+- **CRC16**: 2 字节，小端序，CRC16/MODBUS 校验
+- **帧尾**: `0x55` (固定)
+
 ### 命令字定义
 
 | 命令字 | 名称 | 方向 | 说明 |
@@ -173,6 +228,54 @@ mosquitto_pub -h broker.emqx.io \
 | 0x10 | CMD_TELEMETRY | 设备→主机 | 遥测数据 |
 | 0xFF | CMD_ERROR | 设备→主机 | 错误报告 |
 
+### MQTT 消息格式
+
+**状态消息** (`/status`):
+```json
+{
+  "state": "online",
+  "timestamp": 1711094400,
+  "firmware_version": "0.1.0",
+  "uptime": 12345
+}
+```
+
+**遥测数据** (`/telemetry`):
+```json
+{
+  "ts": 1711094400,
+  "device_id": "subboard_001",
+  "channels": {
+    "ch1": 3.300,
+    "ch2": 2.500,
+    "ch3": 1.800
+  },
+  "sample_rate": 100
+}
+```
+
+**告警通知** (`/alarm`):
+```json
+{
+  "level": "warning",
+  "channel": 1,
+  "value": 3.600,
+  "threshold": 3.500,
+  "message": "Channel 1 exceeded threshold"
+}
+```
+
+**控制命令** (`/command`):
+```json
+{
+  "cmd": "start"
+}
+// 或
+{
+  "cmd": "stop"
+}
+```
+
 ## ⚙️ 配置选项
 
 通过 `idf.py menuconfig` 配置：
@@ -180,95 +283,200 @@ mosquitto_pub -h broker.emqx.io \
 ### WiFi Configuration
 - `HETERO_WIFI_SSID`: WiFi 名称
 - `HETERO_WIFI_PASSWORD`: WiFi 密码
-- `HETERO_WIFI_AUTO_RECONNECT`: 自动重连
+- `HETERO_WIFI_AUTO_RECONNECT`: 自动重连（默认：y）
 
 ### MQTT Configuration
-- `HETERO_MQTT_BROKER_URI`: MQTT Broker 地址
-- `HETERO_MQTT_BROKER_PORT`: MQTT 端口
-- `HETERO_MQTT_CLIENT_ID`: 客户端 ID
+- `HETERO_MQTT_BROKER_URI`: MQTT Broker 地址（如 `mqtt://broker.emqx.io`）
+- `HETERO_MQTT_BROKER_PORT`: MQTT 端口（默认：1883）
+- `HETERO_MQTT_CLIENT_ID`: 客户端 ID（必须唯一）
 - `HETERO_MQTT_USERNAME`: 用户名（可选）
 - `HETERO_MQTT_PASSWORD`: 密码（可选）
 
 ### Device Configuration
-- `HETERO_DEVICE_ID`: 设备唯一标识
-- `HETERO_DATA_UPLOAD_INTERVAL`: 数据上报间隔（ms）
-- `HETERO_ENABLE_UART_PROTOCOL`: 启用 UART 协议
-- `HETERO_ENABLE_SPI_DMA`: 启用 SPI+DMA
-- `HETERO_ENABLE_ADC_GPIO_PROBE`: 启用 ADC/GPIO 探测
+- `HETERO_DEVICE_ID`: 设备唯一标识（如 `subboard_001`）
+- `HETERO_DATA_UPLOAD_INTERVAL`: 数据上报间隔（ms，默认：1000）
+- `HETERO_ENABLE_UART_PROTOCOL`: 启用 UART 协议（默认：y）
+- `HETERO_ENABLE_SPI_DMA`: 启用 SPI+DMA（默认：y）
+- `HETERO_ENABLE_ADC_GPIO_PROBE`: 启用 ADC/GPIO 探测（默认：y）
+
+### Debug Configuration
+- `LOG_DEFAULT_LEVEL`: 日志级别（0-4）
+  - 0: NONE, 1: ERROR, 2: WARN, 3: INFO, 4: DEBUG
 
 ## 🧪 测试
 
-### 单元测试
+### 编译测试
 
 ```bash
-# 运行所有测试
-idf.py test
+# 编译项目
+idf.py build
+
+# 预期输出：
+# Build complete!
 ```
 
 ### 功能测试
 
 1. **WiFi 连接测试**
    ```bash
-   idf.py monitor
-   # 查看 "WiFi connected!" 日志
+   idf.py -p /dev/ttyUSB0 monitor
+   # 查看日志：
+   # I (1234) example_connect: Connected to WiFi
+   # I (1234) heterolink: WiFi connected!
    ```
 
 2. **MQTT 连接测试**
    ```bash
-   # 订阅状态 topic
+   # 终端 1：订阅状态 topic
    mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/status" -v
-   # 应收到：heterolink/subboard/subboard_001/status {"state":"online",...}
+   
+   # 终端 2：监视串口
+   idf.py -p /dev/ttyUSB0 monitor
+   
+   # 预期输出：
+   # I (3456) heterolink: MQTT_EVENT_CONNECTED
+   # I (3456) heterolink: Published status: online
    ```
 
-3. **UART 协议测试**
+3. **遥测数据测试**
+   ```bash
+   # 订阅遥测 topic
+   mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/telemetry" -v
+   
+   # 预期输出（每 1 秒）：
+   # heterolink/subboard/subboard_001/telemetry {"ts":...,"channels":{"ch1":3.300,...}}
+   ```
+
+4. **UART 协议测试**
    ```bash
    # 使用串口工具发送心跳帧
    echo -ne "\xAA\x01\x00\x00\xC0\xC1\x55" > /dev/ttyUSB0
-   # 应收到心跳响应
+   
+   # 监视串口查看响应
+   idf.py -p /dev/ttyUSB0 monitor
+   ```
+
+5. **MQTT 命令测试**
+   ```bash
+   # 发送启动采集命令
+   mosquitto_pub -h broker.emqx.io \
+     -t "heterolink/subboard/subboard_001/command" \
+     -m '{"cmd": "start"}'
+   
+   # 发送停止采集命令
+   mosquitto_pub -h broker.emqx.io \
+     -t "heterolink/subboard/subboard_001/command" \
+     -m '{"cmd": "stop"}'
    ```
 
 ## 📊 内存使用
 
-典型内存占用（ESP32-C6）：
+典型内存占用（ESP32-S3/C6）：
 
 - **代码段**: ~500KB
 - **数据段**: ~50KB
-- **空闲堆**: ~150KB
+- **空闲堆**: ~150-280KB（取决于启用的功能）
+
+**查看空闲内存**:
+```bash
+# 在串口监视器中查看
+I (0) heterolink: [APP] Free memory: 285432 bytes
+```
+
+**优化内存**:
+- 禁用未使用的功能（通过 menuconfig）
+- 降低日志级别
+- 减少缓冲区大小
 
 ## 🔧 故障排查
 
 ### WiFi 连接失败
 
-1. 检查 SSID/密码是否正确
+**症状**: 设备无法连接 WiFi
+
+**解决方案**:
+1. 检查 SSID/密码是否正确（区分大小写）
 2. 确认 2.4GHz 网络（ESP32 不支持 5GHz）
-3. 检查信号强度
+3. 检查信号强度（靠近路由器）
+4. 重启路由器
+5. 查看日志：`I (...) example_connect: Connecting to WiFi...`
 
 ### MQTT 连接失败
 
-1. 确认 Broker 地址和端口
-2. 检查防火墙规则
-3. 查看 MQTT 日志：`CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y`
+**症状**: WiFi 已连接但 MQTT 无法连接
+
+**解决方案**:
+1. 确认 Broker 地址和端口正确
+2. 检查防火墙规则（1883 端口是否开放）
+3. 测试 Broker 可达性：`ping broker.emqx.io`
+4. 查看 MQTT 日志：启用 DEBUG 级别
+   ```bash
+   idf.py menuconfig
+   # Component config → Log output → Default log level → DEBUG
+   ```
+5. 检查 Client ID 是否唯一
 
 ### UART 通信失败
 
-1. 检查 TX/RX 引脚连接
+**症状**: 无法与上位机通信
+
+**解决方案**:
+1. 检查 TX/RX 引脚连接（TX 接 RX，RX 接 TX）
 2. 确认波特率匹配（默认 921600）
-3. 验证 CRC16 校验
+3. 验证 CRC16 校验（使用 CRC16/MODBUS）
+4. 检查串口线是否完好
+5. 使用串口助手测试
+
+### ADC/GPIO 采集异常
+
+**症状**: 采集数据不准确或无数据
+
+**解决方案**:
+1. 检查引脚连接
+2. 确认通道配置正确
+3. 检查 ADC 衰减档位
+4. 验证采样间隔设置
 
 ## 📚 相关文档
 
+### 固件文档
 - [固件架构](../../docs/firmware/architecture.adoc)
-- [协议规范](../../docs/software/protocol-spec.adoc)
-- [MQTT 使用指南](../../docs/software/mqtt-guide.adoc)
+- [配置指南](../../docs/firmware/configuration.adoc)
 - [快速开始](../../docs/getting-started/quick-start.adoc)
+
+### 软件文档
+- [协议规范](../../docs/software/protocol-spec.md)
+- [MQTT 使用指南](../../docs/software/mqtt-guide.md)
+- [上位机设计](../../docs/software/host-design.md)
+
+### 硬件文档
+- [硬件设计](../../docs/hardware/)
+
+## 🔗 外部资源
+
+- [ESP-IDF 官方文档](https://docs.espressif.com/projects/esp-idf/en/latest/)
+- [ESP-MQTT 组件文档](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/protocols/mqtt.html)
+- [ESP32 技术参考手册](https://www.espressif.com/en/products/socs/esp32/technical-documents)
 
 ## 📝 待办事项
 
-- [ ] 完善 MQTT 命令解析（JSON 解析器）
+### 固件增强
+- [ ] 完善 MQTT 命令解析（JSON 解析器/cJSON）
 - [ ] 添加 OTA 升级支持
 - [ ] 实现配置持久化（NVS）
 - [ ] 添加 FreeRTOS 任务监控
 - [ ] 完善错误处理和日志
+- [ ] 添加看门狗（WDT）配置
+
+### 协议完善
+- [ ] 定义完整的 UART 命令集
+- [ ] 实现命令确认机制
+- [ ] 添加流量控制
+
+### 测试
+- [ ] 编写单元测试
+- [ ] 硬件在环测试
+- [ ] 压力测试
 
 ## 📄 许可证
 
@@ -276,4 +484,6 @@ Apache-2.0
 
 ---
 
-*最后更新*: 2026-03-21
+**维护者**: HeteroLink Contributors  
+**版本**: 0.1.0  
+**最后更新**: 2026-03-21

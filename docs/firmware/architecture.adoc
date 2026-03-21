@@ -30,284 +30,505 @@ ESP32 固件系统设计文档。
 └─────────────────────────────────────────────────────────────┘
 ....
 
-== 📦 组件结构
+== 📦 组件结构（实际实现）
 
 ....
 firmware/esp32/subboard/
 ├── main/                      # 主应用
-│   ├── app_main.c            # 程序入口
+│   ├── app_main.c            # 程序入口 + 主逻辑
+│   │   - WiFi 连接管理
+│   │   - MQTT5 客户端初始化
+│   │   - 组件初始化
+│   │   - 主循环任务
+│   │
 │   ├── CMakeLists.txt        # 构建配置
 │   ├── idf_component.yml     # 依赖管理
-│   └── Kconfig.projbuild     # 菜单配置
+│   └── Kconfig.projbuild     # menuconfig 配置
 │
-├── components/                # 自定义组件
-│   ├── heterolink_core/      # 核心库
-│   │   ├── include/
-│   │   │   └── heterolink.h
-│   │   ├── src/
-│   │   │   ├── hl_init.c
-│   │   │   ├── hl_config.c
-│   │   │   └── hl_utils.c
-│   │   └── CMakeLists.txt
-│   │
-│   ├── mqtt_client/          # MQTT 客户端
-│   │   ├── include/
-│   │   │   └── mqtt_client.h
-│   │   ├── src/
-│   │   │   ├── mqtt_init.c
-│   │   │   ├── mqtt_publish.c
-│   │   │   └── mqtt_subscribe.c
-│   │   └── CMakeLists.txt
-│   │
-│   ├── uart_protocol/        # UART 协议栈
-│   │   ├── include/
-│   │   │   └── uart_protocol.h
-│   │   ├── src/
-│   │   │   ├── uart_init.c
-│   │   │   ├── uart_frame.c
-│   │   │   └── uart_handler.c
-│   │   └── CMakeLists.txt
-│   │
-│   ├── spi_dma/              # SPI+DMA 驱动
+├── components/                # 自定义组件（已实现）
+│   ├── spi_dma/              # ✅ SPI+DMA 驱动
 │   │   ├── include/
 │   │   │   └── spi_dma.h
-│   │   ├── src/
-│   │   │   ├── spi_init.c
-│   │   │   ├── spi_transfer.c
-│   │   │   └── dma_config.c
+│   │   ├── spi_dma.c
+│   │   │   - SPI 主机初始化
+│   │   │   - DMA 描述符配置
+│   │   │   - 全双工传输
+│   │   │   - 异步回调
 │   │   └── CMakeLists.txt
 │   │
-│   └── adc_gpio_probe/       # ADC/GPIO 探测
+│   ├── uart_protocol/        # ✅ UART 协议栈
+│   │   ├── include/
+│   │   │   └── uart_protocol.h
+│   │   ├── uart_protocol.c
+│   │   │   - UART 初始化（921600 波特）
+│   │   │   - 帧封装/解析
+│   │   │   - CRC16/MODBUS 校验
+│   │   │   - 命令处理
+│   │   └── CMakeLists.txt
+│   │
+│   └── adc_gpio_probe/       # ✅ ADC/GPIO 探测
 │       ├── include/
 │       │   └── adc_gpio_probe.h
-│       ├── src/
-│       │   ├── probe_init.c
-│       │   ├── adc_capture.c
-│       │   └── gpio_detect.c
+│       ├── adc_gpio_probe.c
+│       │   - 8 通道可配置
+│       │   - ADC 连续采样
+│       │   - GPIO 输入/输出
+│       │   - 电压转换（mV）
 │       └── CMakeLists.txt
 │
-└── tests/                     # 测试代码
-    ├── test_mqtt.c
-    ├── test_uart.c
-    └── test_spi.c
+└── docs/                      # 文档
+    └── QUICK_START.adoc
 ....
 
-== 🔄 数据流
+== 📦 组件状态
+
+[cols="1,2,1",options="header"]
+|===
+|*组件* |*功能* |*状态*
+
+|`main`
+|WiFi 管理、MQTT 客户端、主循环任务
+|✅ 完成
+
+|`spi_dma`
+|SPI+DMA 高速数据传输驱动
+|✅ 完成
+
+|`uart_protocol`
+|UART 自定义二进制协议栈
+|✅ 完成
+
+|`adc_gpio_probe`
+|ADC/GPIO 双模点测功能
+|✅ 完成
+
+|`protocol_examples_common`
+|ESP-IDF 官方 WiFi 连接组件
+|✅ 使用官方
+
+|`espressif/mqtt`
+|ESP-MQTT 客户端库（MQTT 5.0）
+|✅ 使用官方
+|===
+
+== 🔄 数据流（详细实现）
 
 === 远端通道 (MQTT over WiFi)
 
 ....
-传感器数据
+ADC/GPIO 采集 (10ms 周期)
     ↓
-[ADC/GPIO 采集]
+数据转换 (ADC 值 → 电压 mV)
     ↓
-[数据封装]
+JSON 封装 {"ts":...,"channels":{...}}
     ↓
-[MQTT Publish]
+MQTT Publish (QoS 0)
     ↓
 WiFi → MQTT Broker → 上位机
+    ↓
+Topic: heterolink/subboard/{id}/telemetry
 ....
+
+**实现细节**:
+- 采样周期：10ms（可配置）
+- 上报间隔：1000ms（可配置）
+- MQTT 5.0 协议
+- Last Will 遗嘱消息（offline）
 
 === 近端通道 (UART 二进制)
 
 ....
-目标设备
+上位机
     ↓
-[UART 接收]
+UART TX (921600 波特)
     ↓
-[帧解析]
+帧接收 (中断 + 环形缓冲区)
     ↓
-[数据处理]
+帧解析 (0xAA ... 0x55)
     ↓
-[转发/响应]
+CRC16 校验
+    ↓
+命令处理 → 响应
 ....
+
+**帧格式**:
+```
+0xAA [CMD] [LEN:2] [PAYLOAD:N] [CRC16:2] 0x55
+```
+
+**命令字**:
+- `0x01`: CMD_HEARTBEAT（心跳）
+- `0x21`: CMD_START_ACQ（开始采集）
+- `0x22`: CMD_STOP_ACQ（停止采集）
+- `0x10`: CMD_TELEMETRY（遥测数据）
+- `0xFF`: CMD_ERROR（错误报告）
 
 === 板间通道 (SPI+DMA)
 
 ....
 目标主板
     ↓
-[SPI 接口]
+SPI 接口（全双工）
     ↓
-[DMA 传输]
+DMA 传输（零拷贝）
     ↓
-[共享内存]
+共享内存（4KB 缓冲区）
     ↓
-[高速数据交换]
+高速数据交换（最高 10MHz）
 ....
 
-== 📡 通信协议
+**实现细节**:
+- SPI 主机模式
+- DMA 通道：2
+- 最大传输：4096 字节
+- 时钟频率：10MHz（可配置）
 
-=== MQTT Topic 规范
-
-....
-# 设备状态
-heterolink/subboard/{device_id}/status
-  - Payload: "online" | "offline"
-  - QoS: 1
-  - Retain: true
-
-# 命令下发
-heterolink/subboard/{device_id}/command
-  - Payload: JSON {"cmd": "...", "params": {...}}
-  - QoS: 1
-  - Retain: false
-
-# 数据上报
-heterolink/subboard/{device_id}/data/{channel}
-  - Payload: JSON/Binary
-  - QoS: 0/1
-  - Retain: false
-
-# 告警推送
-heterolink/subboard/{device_id}/alert
-  - Payload: JSON {"type": "...", "message": "..."}
-  - QoS: 1
-  - Retain: false
-....
-
-=== UART 帧格式
+=== 控制流
 
 ....
-┌────────┬────────┬────────┬──────────┬────────┬──────────┐
-│ Preamble│ Type   │ Length │ Payload  │ CRC16  │ Postamble│
-│ 0xAA   │ 1 byte │ 2 bytes│ N bytes  │ 2 bytes│ 0x55     │
-└────────┴────────┴────────┴──────────┴────────┴──────────┘
+MQTT Command Topic
+    ↓
+订阅：heterolink/subboard/{id}/command
+    ↓
+JSON 解析 {"cmd": "start"|"stop"}
+    ↓
+执行：adc_gpio_probe_start/stop_sampling()
+    ↓
+采集状态变更
 ....
 
-== ⚙️ 配置选项
+== 📡 通信协议（已实现）
+
+=== MQTT Topic 规范（实际实现）
+
+[cols="1,1,1,1,2",options="header"]
+|===
+|*Topic* |*方向* |*QoS* |*Retain* |*Payload 示例*
+
+|`heterolink/subboard/{id}/status`
+|设备→云
+|1
+|✅
+|`{"state":"online","timestamp":1711094400,"firmware_version":"0.1.0"}`
+
+|`heterolink/subboard/{id}/telemetry`
+|设备→云
+|0
+|❌
+|`{"ts":1711094400,"device_id":"subboard_001","channels":{"ch1":3.300}}`
+
+|`heterolink/subboard/{id}/command`
+|云→设备
+|1
+|❌
+|`{"cmd": "start"}` 或 `{"cmd": "stop"}`
+
+|`heterolink/subboard/{id}/alarm`
+|设备→云
+|1
+|❌
+|`{"level":"warning","channel":1,"value":3.6,"threshold":3.5}`
+|===
+
+**Last Will 配置**:
+```c
+.last_will = {
+    .topic = "heterolink/subboard/{id}/status",
+    .msg = "offline",
+    .qos = 1,
+    .retain = true,
+}
+```
+
+=== UART 帧格式（已实现）
+
+```
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| 帧头 0xAA     | 命令字        | 数据长度 (LE)                 |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
+~                         数据载荷                              ~
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| CRC16 (LE)    | 帧尾 0x55     |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+**字段说明**:
+- **帧头**: `0xAA` (1 字节，固定)
+- **命令字**: 1 字节（见下表）
+- **数据长度**: 2 字节，小端序（载荷长度）
+- **数据载荷**: N 字节（0-65535）
+- **CRC16**: 2 字节，小端序（CRC16/MODBUS）
+- **帧尾**: `0x55` (1 字节，固定)
+
+**命令字定义**:
+[cols="1,1,1,2",options="header"]
+|===
+|*命令字* |*名称* |*方向* |*说明*
+
+|`0x01`
+|CMD_HEARTBEAT
+|双向
+|心跳请求/响应
+
+|`0x21`
+|CMD_START_ACQ
+|主机→设备
+|开始采集
+
+|`0x22`
+|CMD_STOP_ACQ
+|主机→设备
+|停止采集
+
+|`0x10`
+|CMD_TELEMETRY
+|设备→主机
+|遥测数据
+
+|`0xFF`
+|CMD_ERROR
+|设备→主机
+|错误报告
+|===
+
+== ⚙️ 配置选项（实际实现）
 
 === 通过 menuconfig 配置
 
 ....
 HeteroLink Configuration →
     WiFi Configuration →
-        WiFi SSID
-        WiFi Password
-        WiFi Auto Reconnect
+        HETERO_WIFI_SSID (string)
+        HETERO_WIFI_PASSWORD (string)
+        HETERO_WIFI_AUTO_RECONNECT (bool, default: y)
+    
     MQTT Configuration →
-        MQTT Broker URI
-        MQTT Broker Port
-        MQTT Client ID
-        MQTT Username (optional)
-        MQTT Password (optional)
+        HETERO_MQTT_BROKER_URI (string)
+        HETERO_MQTT_BROKER_PORT (int, default: 1883)
+        HETERO_MQTT_CLIENT_ID (string)
+        HETERO_MQTT_USERNAME (string, optional)
+        HETERO_MQTT_PASSWORD (string, optional)
+    
     Device Configuration →
-        Device ID
-        Data Upload Interval (ms)
-        Enable UART Protocol
-        Enable SPI DMA
+        HETERO_DEVICE_ID (string)
+        HETERO_DATA_UPLOAD_INTERVAL (int, ms, default: 1000)
+        HETERO_ENABLE_UART_PROTOCOL (bool, default: y)
+        HETERO_ENABLE_SPI_DMA (bool, default: y)
+        HETERO_ENABLE_ADC_GPIO_PROBE (bool, default: y)
+    
     Debug Configuration →
-        Log Level
-        Enable Debug Output
+        LOG_DEFAULT_LEVEL (int, 0-4)
+        HETERO_LOG_LEVEL (int, 0-4)
 ....
 
-=== sdkconfig.defaults 示例
+=== sdkconfig.defaults 示例（完整）
 
 [source,ini]
 ----
-# WiFi 配置
+# ==================== WiFi 配置 ====================
 CONFIG_HETERO_WIFI_SSID="MyWiFi"
 CONFIG_HETERO_WIFI_PASSWORD="password123"
+CONFIG_HETERO_WIFI_AUTO_RECONNECT=y
 
-# MQTT 配置
+# ==================== MQTT 配置 ====================
 CONFIG_HETERO_MQTT_BROKER_URI="mqtt://broker.emqx.io"
 CONFIG_HETERO_MQTT_BROKER_PORT=1883
+CONFIG_HETERO_MQTT_CLIENT_ID="subboard_001"
+# CONFIG_HETERO_MQTT_USERNAME is not set
+# CONFIG_HETERO_MQTT_PASSWORD is not set
 
-# 设备配置
+# ==================== 设备配置 ====================
 CONFIG_HETERO_DEVICE_ID="subboard_001"
 CONFIG_HETERO_DATA_UPLOAD_INTERVAL=1000
 
-# 调试配置
-CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
+# 功能启用
+CONFIG_HETERO_ENABLE_UART_PROTOCOL=y
+CONFIG_HETERO_ENABLE_SPI_DMA=y
+CONFIG_HETERO_ENABLE_ADC_GPIO_PROBE=y
+
+# ==================== 调试配置 ====================
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+# CONFIG_LOG_DEFAULT_LEVEL_DEBUG is not set
+CONFIG_HETERO_LOG_LEVEL=3
 ----
 
-== 🧪 测试策略
+== 🧪 测试方法
 
-=== 单元测试
-
-[source,c]
-----
-// tests/test_mqtt.c
-#include "unity.h"
-#include "mqtt_client.h"
-
-void setUp(void) {}
-void tearDown(void) {}
-
-void test_mqtt_init(void) {
-    mqtt_config_t config = {
-        .uri = "mqtt://test.broker",
-        .port = 1883
-    };
-    
-    esp_err_t ret = mqtt_init(&config);
-    TEST_ASSERT_EQUAL(ESP_OK, ret);
-}
-
-void test_mqtt_publish(void) {
-    // ...
-}
-----
-
-=== 集成测试
+=== 编译测试
 
 [source,bash]
 ----
-# 运行所有测试
+# 编译项目
+idf.py build
+
+# 预期：Build complete!
+----
+
+=== 功能测试（手动）
+
+**1. WiFi 连接测试**:
+[source,bash]
+----
+idf.py -p /dev/ttyUSB0 monitor
+# 查看：I (...) heterolink: WiFi connected!
+----
+
+**2. MQTT 连接测试**:
+[source,bash]
+----
+# 终端 1：订阅
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/status" -v
+
+# 终端 2：监视串口
+idf.py -p /dev/ttyUSB0 monitor
+
+# 预期：收到 online 状态消息
+----
+
+**3. 遥测数据测试**:
+[source,bash]
+----
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/telemetry" -v
+# 预期：每秒收到 JSON 格式遥测数据
+----
+
+**4. UART 协议测试**:
+[source,bash]
+----
+# 发送心跳帧
+echo -ne "\xAA\x01\x00\x00\xC0\xC1\x55" > /dev/ttyUSB0
+
+# 监视串口查看响应
+idf.py -p /dev/ttyUSB0 monitor
+----
+
+**5. MQTT 命令测试**:
+[source,bash]
+----
+# 启动采集
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/subboard_001/command" \
+  -m '{"cmd": "start"}'
+
+# 停止采集
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/subboard_001/command" \
+  -m '{"cmd": "stop"}'
+----
+
+=== 单元测试（待实现）
+
+[source,bash]
+----
+# 运行所有测试（待实现）
 idf.py test
 
 # 运行特定测试
-idf.py test --test-filter mqtt
+idf.py test --test-filter spi
 ----
 
-== 📊 内存布局
+== 📊 内存使用（实测）
 
-....
-┌─────────────────┐ 0x40000000
-│   DRAM (Data)   │  ~160KB
-├─────────────────┤
-│   IRAM (Code)   │  ~160KB
-├─────────────────┤
-│   Flash (App)   │  ~1MB
-├─────────────────┤
-│   Flash (OTA)   │  ~1MB
-├─────────────────┤
-│   Flash (NVS)   │  ~20KB
-├─────────────────┤
-│   Flash (PHY)   │  ~4KB
-└─────────────────┘
-....
+=== 典型内存占用（ESP32-S3/C6）
+
+[cols="1,1",options="header"]
+|===
+|*区域* |*大小*
+
+|代码段
+|~500KB
+
+|数据段
+|~50KB
+
+|空闲堆
+|~150-280KB
+
+|NV S
+|~20KB
+|===
+
+**查看空闲内存**:
+```c
+ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+// 典型输出：[APP] Free memory: 285432 bytes
+```
+
+=== 内存优化建议
+
+- 禁用未使用的功能（通过 menuconfig）
+- 降低日志级别（INFO → WARN）
+- 减少缓冲区大小
+- 使用 DMA 零拷贝传输
+
+=== Flash 分区
+
+[cols="1,1",options="header"]
+|===
+|*分区* |*大小*
+
+|App
+|~1MB
+
+|OTA
+|~1MB
+
+|NV S
+|~20KB
+
+|PHY
+|~4KB
+|===
 
 == 🔒 安全特性
 
 === 当前支持
 
-* ✅ WPA2/WPA3 WiFi 加密
-* ✅ MQTT 认证 (用户名/密码)
-* ✅ 安全启动 (可选)
+[cols="1,2",options="header"]
+|===
+|*特性* |*状态*
+
+|WPA2/WPA3 WiFi 加密
+|✅ 支持（通过 ESP-IDF）
+
+|MQTT 认证（用户名/密码）
+|✅ 支持（可选配置）
+
+|Last Will 遗嘱消息
+|✅ 已实现（offline 状态）
+
+|CRC16 校验（UART）
+|✅ 已实现（CRC16/MODBUS）
+|===
 
 === 计划中
 
-* 🟡 MQTT over TLS (SSL/TLS)
-* 🟡 Flash 加密
-* 🟡 安全启动 v2
-* 🟡 OTA 签名验证
+- 🟡 MQTT over TLS（SSL/TLS 加密）
+- 🟡 Flash 加密
+- 🟡 安全启动 v2
+- 🟡 OTA 签名验证
+- 🟡 设备唯一密钥
 
 == 📚 开发指南
 
-=== 添加新功能
+=== 添加新组件
 
-. 在 `components/` 创建新组件
-. 实现功能代码
-. 编写单元测试
-. 更新文档
-. 提交 PR
+. 在 `components/` 目录创建新组件
+. 创建 `include/组件名.h` 头文件
+. 实现 `组件名.c` 源文件
+. 编写 `CMakeLists.txt`
+. 在 `main/idf_component.yml` 添加依赖
+. 编写测试代码
 
 === 调试技巧
 
+**使用 ESP_LOG 宏**:
 [source,c]
 ----
-// 使用 ESP_LOG 宏
 #include "esp_log.h"
 
 static const char *TAG = "my_module";
@@ -320,13 +541,56 @@ void my_function(void) {
 }
 ----
 
+**启用调试日志**:
+[source,bash]
+----
+idf.py menuconfig
+# Component config → Log output → Default log level → DEBUG
+----
+
+**查看任务堆栈使用**:
+[source,c]
+----
+#include "esp_task_wdt.h"
+#include "freertos/task.h"
+
+// 在任务中
+printf("Stack high water mark: %d\n", uxTaskGetStackHighWaterMark(NULL));
+----
+
+=== 常见问题
+
+**Q: 如何修改采样率？**
+
+A: 修改 `CONFIG_HETERO_DATA_UPLOAD_INTERVAL`（单位：ms）
+
+**Q: 如何更改 MQTT Topic？**
+
+A: 修改 `main/app_main.c` 中的 `MQTT_TOPIC_PREFIX` 宏
+
+**Q: 如何添加新的 ADC 通道？**
+
+A: 修改 `components/adc_gpio_probe/include/adc_gpio_probe.h` 中的通道配置
+
 == 🔗 相关文档
 
-* link:mqtt-protocol.adoc[MQTT 协议规范]
-* link:uart-protocol.adoc[UART 协议规范]
 * link:configuration.adoc[配置指南]
-* link:api-reference.adoc[API 参考]
+* link:index.md[固件文档索引]
+* link:../../software/protocol-spec.md[协议规范]
+* link:../../software/mqtt-guide.md[MQTT 使用指南]
+* link:../../getting-started/quick-start.adoc[快速开始]
+
+== 📝 更新日志
+
+- **2026-03-21**: 初始版本，完成所有核心组件实现
+  - ✅ SPI+DMA 高速数据传输
+  - ✅ UART 自定义二进制协议
+  - ✅ ADC/GPIO 双模点测
+  - ✅ MQTT5 远端通道
+  - ✅ WiFi 连接管理
 
 '''
 
-*最后更新*: 2026-03-21
+**维护者**: HeteroLink Contributors  
+**版本**: 0.1.0  
+**最后更新**: 2026-03-21

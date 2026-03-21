@@ -2,29 +2,61 @@
 
 == 1. 环境准备
 
+=== 安装 ESP-IDF
+
 [source,bash]
 ----
-# 确保 ESP-IDF 已安装并激活
-. $HOME/esp/esp-idf/export.sh
+# 克隆 ESP-IDF 仓库（v5.3 或更高版本）
+git clone -b v5.3 https://github.com/espressif/esp-idf.git
+cd esp-idf
 
-# 验证 IDF 版本 (需要 v5.3+)
-idf.py --version
+# 安装工具链
+./install.sh esp32s3  # 根据芯片型号选择：esp32, esp32s3, esp32c3, esp32c6
+
+# 加载环境变量
+. ./export.sh
 ----
 
+=== 验证安装
+
+[source,bash]
+----
+# 验证 IDF 版本
+idf.py --version
+# 预期：ESP-IDF v5.3.x
+
+# 检查工具链
+xtensa-esp32s3-elf-gcc --version
+----
+
+=== 系统要求
+
+- **操作系统**: Linux (Ubuntu 20.04+), macOS, Windows (WSL2)
+- **磁盘空间**: 约 10GB
+- **Python**: 3.8 或更高版本
+- **Git**: 最新版本
+
 == 2. 配置项目
+
+=== 设置目标芯片
 
 [source,bash]
 ----
 # 进入项目目录
 cd ~/Code/HeteroLink/firmware/esp32/subboard
 
-# 设置目标芯片 (根据你的硬件选择)
+# 设置目标芯片（根据你的硬件选择）
 idf.py set-target esp32s3
 # 或：idf.py set-target esp32
 # 或：idf.py set-target esp32c3
+# 或：idf.py set-target esp32c6
 ----
 
+⚠️ **注意**: `set-target` 会清除之前的编译产物，需要重新编译。
+
 === 配置 WiFi 和 MQTT
+
+**方法 1: 使用 menuconfig（推荐）**
 
 [source,bash]
 ----
@@ -32,120 +64,287 @@ idf.py menuconfig
 ----
 
 在菜单中配置：
-
 ----
 HeteroLink Configuration  --->
     WiFi SSID: <你的 WiFi 名称>
     WiFi Password: <你的 WiFi 密码>
-    MQTT Broker URI: <MQTT 服务器地址>
+    MQTT Broker URI: mqtt://broker.emqx.io
 ----
 
-*MQTT Broker 示例*:
-
-* 公共测试：`mqtt://test.mosquitto.org:1883`
-* 本地 Broker: `mqtt://192.168.1.100:1883`
-* EMQX 公共：`mqtt://broker.emqx.io:1883`
-
-== 3. 编译烧录
+**方法 2: 编辑 sdkconfig.defaults**
 
 [source,bash]
 ----
-# 编译
+# 编辑配置文件
+vim sdkconfig.defaults
+----
+
+添加以下内容：
+[source,ini]
+----
+CONFIG_HETERO_WIFI_SSID="YourWiFi"
+CONFIG_HETERO_WIFI_PASSWORD="YourPassword"
+CONFIG_HETERO_MQTT_BROKER_URI="mqtt://broker.emqx.io"
+CONFIG_HETERO_DEVICE_ID="subboard_001"
+----
+
+然后重新生成配置：
+[source,bash]
+----
+idf.py reconfigure
+----
+
+=== MQTT Broker 推荐
+
+[cols="1,1,2",options="header"]
+|===
+|*Broker* |*地址* |*说明*
+
+|EMQX 公共
+|`mqtt://broker.emqx.io:1883`
+|稳定，适合测试
+
+|Mosquitto 测试
+|`mqtt://test.mosquitto.org:1883`
+|公共测试服务器
+
+|HiveMQ 公共
+|`mqtt://broker.hivemq.com:1883`
+|公共测试服务器
+
+|本地 Broker
+|`mqtt://192.168.1.100:1883`
+|自建 MQTT 服务器
+|===
+
+== 3. 编译烧录
+
+=== 编译
+
+[source,bash]
+----
+# 编译项目（首次编译约 5-10 分钟）
 idf.py build
+----
 
-# 烧录 (替换为实际端口)
+**预期输出**:
+```
+Build complete!
+```
+
+**编译产物位置**: `build/` 目录
+
+=== 烧录
+
+[source,bash]
+----
+# 烧录到设备（替换为实际串口）
 idf.py -p /dev/ttyUSB0 flash
+----
 
-# 监视串口输出
+**查找串口**:
+[source,bash]
+----
+# Linux
+ls /dev/ttyUSB*
+# 或
+ls /dev/ttyACM*
+
+# macOS
+ls /dev/cu.usbserial*
+
+# Windows
+# 使用设备管理器查看 COM 端口
+----
+
+=== 监视串口
+
+[source,bash]
+----
+# 监视串口输出（115200 波特）
 idf.py -p /dev/ttyUSB0 monitor
 ----
 
-*退出监视器*: 按 `Ctrl+]`
+**预期启动日志**:
+```
+I (0) heterolink: ========================================
+I (0) heterolink:   HeteroLink ESP32 Subboard
+I (0) heterolink:   Version: 0.1.0
+I (0) heterolink:   Device ID: subboard_001
+I (0) heterolink: ========================================
+I (0) heterolink: [APP] Free memory: 285432 bytes
+I (1234) heterolink: Connecting to WiFi...
+I (2345) heterolink: WiFi connected!
+I (3456) heterolink: MQTT_EVENT_CONNECTED
+I (3456) heterolink: Published status: online
+```
+
+**退出监视器**: 按 `Ctrl+]`
 
 == 4. 测试 MQTT 通信
 
 === 订阅设备状态
 
+打开新终端，订阅设备状态：
 [source,bash]
 ----
-# 使用 mosquitto 客户端订阅
-mosquitto_sub -h test.mosquitto.org -t "heterolink/subboard/#" -v
+# 订阅所有子板消息
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/#" -v
+
+# 或只订阅特定设备
+mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/subboard_001/#" -v
 ----
+
+**预期输出**:
+```
+heterolink/subboard/subboard_001/status {"state":"online","timestamp":1711094400,...}
+heterolink/subboard/subboard_001/telemetry {"ts":1711094400,"channels":{"ch1":3.300,...}}
+```
 
 === 发送控制命令
 
+打开另一个终端，发送控制命令：
 [source,bash]
 ----
-# 发布命令到设备
-mosquitto_pub -h test.mosquitto.org -t "heterolink/subboard/device1/command" \
-  -m '{"cmd": "ping"}'
+# 启动采集
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/subboard_001/command" \
+  -m '{"cmd": "start"}'
+
+# 停止采集
+mosquitto_pub -h broker.emqx.io \
+  -t "heterolink/subboard/subboard_001/command" \
+  -m '{"cmd": "stop"}'
 ----
+
+=== 使用 MQTTX 客户端（可选）
+
+下载 https://mqttx.app/[MQTTX] 图形化客户端：
+1. 新建连接：`broker.emqx.io:1883`
+2. 订阅 Topic: `heterolink/subboard/#`
+3. 发布命令到：`heterolink/subboard/subboard_001/command`
 
 == 5. 预期输出
 
-[source]
-----
+=== 串口启动日志
+
+```
 I (0) heterolink: ========================================
 I (0) heterolink:   HeteroLink ESP32 Subboard
 I (0) heterolink:   Version: 0.1.0
-I (0) heterolink:   Channel: Remote (MQTT over WiFi)
+I (0) heterolink:   Device ID: subboard_001
 I (0) heterolink: ========================================
 I (0) heterolink: [APP] Free memory: 285432 bytes
 I (0) heterolink: [APP] IDF version: v5.3.2
 I (1234) heterolink: Connecting to WiFi...
-I (2345) example_connect: Connected to example_connect: sta
+I (2345) example_connect: Connected to WiFi
 I (2345) heterolink: WiFi connected!
 I (2350) heterolink: MQTT client started
 I (3456) heterolink: MQTT_EVENT_CONNECTED
 I (3456) heterolink: sent subscribe successful, msg_id=12345
-I (3456) heterolink: sent publish status=online, msg_id=12346
-----
+I (3456) heterolink: Published status: online
+```
 
-== 6. MQTT Topic 规范
+=== MQTT 消息示例
 
-[cols="1,1,2",options="header"]
-|===
-|Topic |方向 |说明
+**状态消息** (上线):
+```json
+{
+  "state": "online",
+  "timestamp": 1711094400,
+  "firmware_version": "0.1.0",
+  "uptime": 285432
+}
+```
 
-|`heterolink/subboard/status`
-|设备→云
-|设备在线/离线状态
+**遥测数据** (每秒):
+```json
+{
+  "ts": 1711094400,
+  "device_id": "subboard_001",
+  "channels": {
+    "ch1": 3.300,
+    "ch2": 2.500,
+    "ch3": 1.800
+  },
+  "sample_rate": 100
+}
+```
 
-|`heterolink/subboard/+/command`
-|云→设备
-|控制命令
-
-|`heterolink/subboard/+/telemetry`
-|设备→云
-|遥测数据 (待实现)
-
-|`heterolink/subboard/+/adc`
-|设备→云
-|ADC 采集数据 (待实现)
-
-|`heterolink/subboard/+/gpio`
-|设备→云
-|GPIO 状态 (待实现)
-|===
-
-== 7. 故障排查
+== 6. 常见问题
 
 === WiFi 连接失败
-* 检查 SSID/密码是否正确
-* 确认 2.4GHz WiFi 可用 (ESP32 不支持 5GHz)
-* 检查信号强度
+
+**症状**: 一直显示 "Connecting to WiFi..."
+
+**解决方案**:
+1. 检查 SSID/密码是否正确（区分大小写）
+2. 确认 2.4GHz WiFi 可用（ESP32 不支持 5GHz）
+3. 检查信号强度（靠近路由器）
+4. 重启路由器
+5. 查看日志中的错误码
 
 === MQTT 连接失败
-* 确认 Broker 地址和端口正确
-* 检查防火墙规则
-* 尝试使用 TLS: `mqtts://...`
 
-=== 内存不足
-* 减少日志级别：`menuconfig → Component config → Log output`
-* 检查堆内存：`esp_get_free_heap_size()`
+**症状**: WiFi 已连接但 MQTT 无法连接
 
-== 下一步
+**解决方案**:
+1. 确认 Broker 地址和端口正确
+2. 检查防火墙规则（1883 端口是否开放）
+3. 测试 Broker 可达性：`ping broker.emqx.io`
+4. 检查 Client ID 是否唯一
+5. 启用 DEBUG 日志查看详细错误
 
-* [ ] 实现近端 UART 通道
-* [ ] 实现 SPI+DMA 高速传输
-* [ ] 实现 GPIO/ADC 点测功能
+=== 串口无输出
+
+**症状**: 烧录后串口没有任何输出
+
+**解决方案**:
+1. 检查串口线连接（TX/RX 是否接反）
+2. 确认波特率正确（115200）
+3. 检查串口权限：`sudo chmod 666 /dev/ttyUSB0`
+4. 尝试更换 USB 线或串口
+
+=== 编译失败
+
+**症状**: 编译时报错
+
+**解决方案**:
+1. 确认 ESP-IDF 环境变量已加载：`. $HOME/esp/esp-idf/export.sh`
+2. 清理编译产物：`idf.py fullclean`
+3. 重新配置目标芯片：`idf.py set-target esp32s3`
+4. 检查依赖：`idf.py reconfigure`
+
+== 7. 下一步
+
+=== 深入阅读
+
+* link:../../../docs/firmware/architecture.adoc[固件架构详解]
+* link:../../../docs/firmware/configuration.adoc[配置指南]
+* link:../../../docs/software/protocol-spec.md[协议规范]
+* link:../../../docs/software/mqtt-guide.adoc[MQTT 使用指南]
+
+=== 进阶功能
+
+* [ ] 配置 ADC/GPIO 通道
+* [ ] 自定义 SPI 引脚
+* [ ] 实现自定义 MQTT 命令
+* [ ] 添加 OTA 升级支持
+* [ ] 编写单元测试
+
+=== 硬件测试
+
+* [ ] 连接 ADC 传感器测试模拟采集
+* [ ] 连接 GPIO 设备测试数字探测
+* [ ] 连接 SPI 设备测试高速传输
+* [ ] 连接 UART 设备测试近端通信
+
+---
+
+**提示**: 遇到问题？查看 link:../../../docs/firmware/troubleshooting.adoc[故障排查指南] 或提交 Issue。
+
+---
+
+**维护者**: HeteroLink Contributors  
+**版本**: 0.1.0  
+**最后更新**: 2026-03-21
