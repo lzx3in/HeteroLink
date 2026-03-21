@@ -15,3 +15,6 @@ managed_components/
 # Debug
 *.log
 core.*
+
+# clangd
+.cache/
