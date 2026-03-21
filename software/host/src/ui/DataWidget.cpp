@@ -12,14 +12,10 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QGroupBox>
+#include <QScrollArea>
 
-// 如果没有 QCustomPlot，使用简单的占位实现
-#ifndef HAS_QCUSTOMPLOT
-#include <QChart>
-#include <QChartView>
-#include <QLineSeries>
-QT_CHARTS_USE_NAMESPACE
-#endif
+// 如果没有 QCustomPlot/QCharts，使用简单的占位实现
+// Qt Charts 需要单独安装 (qt6-charts-dev)
 
 namespace HeteroLink {
 
@@ -67,7 +63,7 @@ void DataWidget::setDisplayMode(const QString& mode)
     bool showWave = (mode == "wave" || mode == "both");
     bool showTable = (mode == "table" || mode == "both");
     
-    plot_->setVisible(showWave);
+    plotPlaceholder_->setVisible(showWave);
     table_->setVisible(showTable);
     
     if (!currentDevice_.isEmpty() && dataProcessor_) {
@@ -77,14 +73,7 @@ void DataWidget::setDisplayMode(const QString& mode)
 
 void DataWidget::clear()
 {
-    if (plot_) {
-#ifdef HAS_QCUSTOMPLOT
-        plot_->clearGraphs();
-        plot_->replot();
-#else
-        // QChart 清理
-#endif
-    }
+    // 图表清理（占位）
     
     if (table_) {
         table_->setRowCount(0);
@@ -124,23 +113,21 @@ void DataWidget::setupUI()
     
     layout->addLayout(toolbar);
     
-    // 波形图
+    // 波形图（占位 - 需要安装 QCustomPlot 或 Qt Charts）
     auto plotGroup = new QGroupBox("实时波形");
     auto plotLayout = new QVBoxLayout(plotGroup);
     
-#ifdef HAS_QCUSTOMPLOT
-    plot_ = new QCustomPlot();
-#else
-    // 使用 Qt Charts
-    QChart *chart = new QChart();
-    chart->setTitle("实时数据");
-    plot_ = new QChartView(chart);
-    plot_->setRenderHint(QPainter::Antialiasing);
-#endif
+    plotPlaceholder_ = new QWidget();
+    plotPlaceholder_->setMinimumHeight(300);
+    auto placeholderLayout = new QVBoxLayout(plotPlaceholder_);
+    placeholderLayout->setAlignment(Qt::AlignCenter);
     
-    plot_->setMinimumHeight(300);
-    plotLayout->addWidget(plot_);
+    statusLabel_ = new QLabel("📊 图表功能需要安装 QCustomPlot 或 Qt Charts\n\n安装方法:\n  sudo apt install libqcustomplot-dev\n  或\n  sudo apt install qt6-charts-dev");
+    statusLabel_->setAlignment(Qt::AlignCenter);
+    statusLabel_->setStyleSheet("color: #888; font-size: 14px;");
+    placeholderLayout->addWidget(statusLabel_);
     
+    plotLayout->addWidget(plotPlaceholder_);
     layout->addWidget(plotGroup);
     
     // 数据表格
@@ -166,20 +153,8 @@ void DataWidget::setupUI()
 
 void DataWidget::setupPlot()
 {
-#ifdef HAS_QCUSTOMPLOT
-    plot_->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    plot_->axisRect()->setupFullAxesBox(true);
-    
-    // 设置坐标轴标签
-    plot_->xAxis->setLabel("时间");
-    plot_->yAxis->setLabel("数值");
-    
-    // 添加图例
-    plot_->legend->setVisible(true);
-    plot_->legend->setBrush(QBrush(QColor(255, 255, 255, 200)));
-#else
-    // Qt Charts 配置
-#endif
+    // 图表功能需要安装 QCustomPlot 或 Qt Charts
+    // 当前为占位实现
 }
 
 void DataWidget::setupTable()
@@ -199,40 +174,9 @@ void DataWidget::setupTable()
 
 void DataWidget::updatePlot(const QString& deviceId)
 {
-    if (!dataProcessor_ || !plot_) {
-        return;
-    }
-    
-    auto data = dataProcessor_->getLatestData(deviceId, 1000);
-    if (data.isEmpty()) {
-        return;
-    }
-    
-#ifdef HAS_QCUSTOMPLOT
-    plot_->clearGraphs();
-    
-    int channelCount = data[0].channels.size();
-    auto colors = getChannelColors();
-    
-    for (int ch = 0; ch < channelCount; ++ch) {
-        plot_->addGraph();
-        plot_->graph(ch)->setName(QString("通道 %1").arg(ch));
-        plot_->graph(ch)->setPen(QPen(colors[ch % colors.size()], 2));
-        
-        QVector<double> x(data.size()), y(data.size());
-        for (int i = 0; i < data.size(); ++i) {
-            x[i] = data[i].timestamp / 1000.0;  // 转换为秒
-            y[i] = data[i].channels[ch];
-        }
-        
-        plot_->graph(ch)->setData(x, y);
-    }
-    
-    plot_->rescaleAxes();
-    plot_->replot();
-#else
-    // Qt Charts 实现
-#endif
+    // 图表功能需要安装 QCustomPlot 或 Qt Charts
+    // 当前为占位实现
+    Q_UNUSED(deviceId)
 }
 
 void DataWidget::updateTable(const QString& deviceId)

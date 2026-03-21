@@ -4,13 +4,9 @@
         <!-- 样式表 -->
         <file>styles/dark.qss</file>
         
-        <!-- 图标 -->
-        <file>icons/device_online.png</file>
-        <file>icons/device.png</file>
-        <file>icons/device_offline.png</file>
-        <file>icons/connect.png</file>
-        <file>icons/disconnect.png</file>
-        <file>icons/export.png</file>
-        <file>icons/settings.png</file>
+        <!-- 自定义图标（系统主题没有的） -->
+        <!-- 设备状态图标需要自定义，因为系统主题没有在线/离线状态 -->
+        <file>icons/device_online.svg</file>
+        <file>icons/device_offline.svg</file>
     </qresource>
 </RCC>

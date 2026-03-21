@@ -98,10 +98,10 @@ void MqttChannel::disconnect()
     if (client_) {
         client_->disconnectFromHost();
     }
+    subscriptions_.clear();
 #endif
     
     connected_ = false;
-    subscriptions_.clear();
     LOG_INFO("MQTT disconnected");
     emit connectionChanged(false);
 }

@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     QString configFile;
     if (parser.isSet(configOption)) {
         configFile = parser.value(configOption);
-        LOG_INFO("Using config file: {}", configFile.toStdString());
+        LOG_INFO("Using config file: " + configFile);
     }
     
     if (parser.isSet(verboseOption)) {
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
         return result;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Fatal error: {}", e.what());
+        LOG_ERROR("Fatal error: " + QString::fromUtf8(e.what()));
         return -1;
     }
 }

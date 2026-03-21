@@ -9,6 +9,12 @@
 
 #include <QWidget>
 #include <QMap>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QSpinBox>
+#include <QDoubleSpinBox>
+#include <QCheckBox>
+#include <QPushButton>
 
 namespace HeteroLink {
 
@@ -95,6 +101,10 @@ private:
     void loadUartConfig();
     void loadMqttConfig();
     void loadAlarmConfig();
+    
+    QWidget* createUartTab();
+    QWidget* createMqttTab();
+    QWidget* createAlarmTab();
 };
 
 } // namespace HeteroLink

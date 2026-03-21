@@ -11,6 +11,9 @@
 #include <QMap>
 #include <QString>
 #include <QDateTime>
+#include <QVector>
+
+#include "protocol/Protocol.h"
 
 namespace HeteroLink {
 

@@ -10,7 +10,8 @@
 #include <QObject>
 #include <QMap>
 #include <QVector>
-#include <QCircularBuffer>
+#include <QQueue>
+#include <QHash>
 #include <memory>
 
 #include "protocol/Protocol.h"
@@ -33,13 +34,15 @@ struct ChannelStats {
 /**
  * @brief 设备数据
  */
-struct DeviceData {
+class DeviceData {
+public:
     QString deviceId;
-    QCircularBuffer<TelemetryData> buffer;  // 环形缓冲区
+    QQueue<TelemetryData> buffer;  // 数据缓冲区
     QMap<int, ChannelStats> channelStats;  // 通道统计
     quint64 lastUpdate = 0;
+    int maxBufferSize = 10000;
     
-    DeviceData(int bufferSize = 10000) : buffer(bufferSize) {}
+    DeviceData(int bufferSize = 10000) : maxBufferSize(bufferSize) {}
 };
 
 /**
@@ -132,7 +135,7 @@ signals:
     void statsUpdated(const QString& deviceId);
     
 private:
-    QMap<QString, std::unique_ptr<DeviceData>> deviceData_;
+    QHash<QString, DeviceData*> deviceData_;
     int defaultBufferSize_ = 10000;
     
     void updateStats(const QString& deviceId, const TelemetryData& data);

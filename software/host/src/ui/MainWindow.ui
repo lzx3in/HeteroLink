@@ -14,9 +14,7 @@
    <string>HeteroLink Host</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="../resources/resources.qrc">
-    <normaloff>:/icons/app.png</normaloff>
-   </iconset>
+   <iconset theme="applications-engineering"/>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -168,6 +166,9 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionOpen">
+   <property name="icon">
+    <iconset theme="document-open"/>
+   </property>
    <property name="text">
     <string>打开配置...</string>
    </property>
@@ -176,6 +177,9 @@
    </property>
   </action>
   <action name="actionSave">
+   <property name="icon">
+    <iconset theme="document-save"/>
+   </property>
    <property name="text">
     <string>保存配置</string>
    </property>
@@ -184,6 +188,9 @@
    </property>
   </action>
   <action name="actionExport">
+   <property name="icon">
+    <iconset theme="document-export"/>
+   </property>
    <property name="text">
     <string>导出数据...</string>
    </property>
@@ -192,6 +199,9 @@
    </property>
   </action>
   <action name="actionExit">
+   <property name="icon">
+    <iconset theme="application-exit"/>
+   </property>
    <property name="text">
     <string>退出</string>
    </property>
@@ -201,9 +211,7 @@
   </action>
   <action name="actionConnect">
    <property name="icon">
-    <iconset resource="../resources/resources.qrc">
-     <normaloff>:/icons/connect.png</normaloff>
-    </iconset>
+    <iconset theme="network-connect"/>
    </property>
    <property name="text">
     <string>连接</string>
@@ -217,9 +225,7 @@
   </action>
   <action name="actionDisconnect">
    <property name="icon">
-    <iconset resource="../resources/resources.qrc">
-     <normaloff>:/icons/disconnect.png</normaloff>
-    </iconset>
+    <iconset theme="network-disconnect"/>
    </property>
    <property name="text">
     <string>断开</string>
@@ -230,9 +236,7 @@
   </action>
   <action name="actionStart">
    <property name="icon">
-    <iconset resource="../resources/resources.qrc">
-     <normaloff>:/icons/start.png</normaloff>
-    </iconset>
+    <iconset theme="media-playback-start"/>
    </property>
    <property name="text">
     <string>开始采集</string>
@@ -246,9 +250,7 @@
   </action>
   <action name="actionStop">
    <property name="icon">
-    <iconset resource="../resources/resources.qrc">
-     <normaloff>:/icons/stop.png</normaloff>
-    </iconset>
+    <iconset theme="media-playback-stop"/>
    </property>
    <property name="text">
     <string>停止采集</string>
@@ -259,9 +261,7 @@
   </action>
   <action name="actionSettings">
    <property name="icon">
-    <iconset resource="../resources/resources.qrc">
-     <normaloff>:/icons/settings.png</normaloff>
-    </iconset>
+    <iconset theme="preferences-system"/>
    </property>
    <property name="text">
     <string>设置</string>
@@ -271,21 +271,33 @@
    </property>
   </action>
   <action name="actionAbout">
+   <property name="icon">
+    <iconset theme="help-about"/>
+   </property>
    <property name="text">
     <string>关于 HeteroLink</string>
    </property>
   </action>
   <action name="actionAddDevice">
+   <property name="icon">
+    <iconset theme="list-add"/>
+   </property>
    <property name="text">
     <string>添加设备...</string>
    </property>
   </action>
   <action name="actionRemoveDevice">
+   <property name="icon">
+    <iconset theme="list-remove"/>
+   </property>
    <property name="text">
     <string>移除设备</string>
    </property>
   </action>
   <action name="actionFullscreen">
+   <property name="icon">
+    <iconset theme="view-fullscreen"/>
+   </property>
    <property name="text">
     <string>全屏</string>
    </property>
@@ -294,11 +306,17 @@
    </property>
   </action>
   <action name="actionDataLogger">
+   <property name="icon">
+    <iconset theme="document-properties"/>
+   </property>
    <property name="text">
     <string>数据记录器...</string>
    </property>
   </action>
   <action name="actionDocumentation">
+   <property name="icon">
+    <iconset theme="help-contents"/>
+   </property>
    <property name="text">
     <string>文档</string>
    </property>

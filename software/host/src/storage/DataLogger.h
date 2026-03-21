@@ -13,6 +13,8 @@
 #include <QTextStream>
 #include <memory>
 
+#include "protocol/Protocol.h"
+
 namespace HeteroLink {
 
 class DataProcessor;
@@ -117,6 +119,7 @@ private:
     void closeFile();
     QString generateFilePath() const;
     void writeHeader();
+    void splitFile();
 };
 
 } // namespace HeteroLink

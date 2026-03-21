@@ -9,6 +9,7 @@
 
 #include <string>
 #include <memory>
+#include <QString>
 
 namespace HeteroLink {
 
@@ -42,6 +43,10 @@ public:
      */
     static void log(Level level, const std::string& message, 
                    const char* file, int line);
+    static void log(Level level, const QString& message, 
+                   const char* file, int line);
+    static void log(Level level, const char* message, 
+                   const char* file, int line);
     
 private:
     static std::unique_ptr<Logger> instance_;
@@ -49,11 +54,13 @@ private:
     std::string logFile_;
     
     Logger();
-    ~Logger();
     
     std::string formatMessage(Level level, const std::string& message,
                              const char* file, int line);
     std::string levelToString(Level level);
+    
+public:
+    ~Logger();  // 需要公有以便 unique_ptr 删除
 };
 
 // 日志宏定义

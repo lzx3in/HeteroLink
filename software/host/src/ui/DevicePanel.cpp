@@ -55,6 +55,14 @@ void DevicePanel::refreshPorts()
     }
 }
 
+QString DevicePanel::getCurrentDeviceId() const
+{
+    if (deviceList_->currentItem()) {
+        return deviceList_->currentItem()->data(Qt::UserRole).toString();
+    }
+    return QString();
+}
+
 void DevicePanel::setupUI()
 {
     auto layout = new QVBoxLayout(this);
@@ -129,11 +137,11 @@ void DevicePanel::updateDeviceList()
 QIcon DevicePanel::getStatusIcon(bool connected, bool online) const
 {
     if (connected && online) {
-        return QIcon::fromTheme("network-wireless", QIcon(":icons/device_online.png"));
+        return QIcon::fromTheme("network-wireless", QIcon(":icons/device_online.svg"));
     } else if (connected) {
-        return QIcon::fromTheme("network-wired", QIcon(":icons/device.png"));
+        return QIcon::fromTheme("network-wired", QIcon(":icons/device_online.svg"));
     } else {
-        return QIcon::fromTheme("network-offline", QIcon(":icons/device_offline.png"));
+        return QIcon::fromTheme("network-offline", QIcon(":icons/device_offline.svg"));
     }
 }
 

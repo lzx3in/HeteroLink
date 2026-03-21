@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.16)
 project(HeteroLinkHost VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -7,9 +7,16 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# 查找 Qt6 组件
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort)
-find_package(Qt6 OPTIONAL_COMPONENTS Charts)
+# 优先查找 Qt6，如果没有则使用 Qt5
+find_package(Qt6 COMPONENTS Core Gui Widgets SerialPort QUIET)
+if(Qt6_FOUND)
+    find_package(Qt6 OPTIONAL_COMPONENTS Charts)
+    set(QT_VERSION_MAJOR 6)
+else()
+    find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets SerialPort)
+    find_package(Qt5 OPTIONAL_COMPONENTS Charts)
+    set(QT_VERSION_MAJOR 5)
+endif()
 
 # 源文件
 set(SOURCES
@@ -67,17 +74,28 @@ add_executable(heterolink-host
 )
 
 # 链接 Qt 库
-target_link_libraries(heterolink-host PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::SerialPort
-)
-
-# 可选：Qt Charts
-if(TARGET Qt6::Charts)
-    target_link_libraries(heterolink-host PRIVATE Qt6::Charts)
-    target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
+if(QT_VERSION_MAJOR EQUAL 6)
+    target_link_libraries(heterolink-host PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::SerialPort
+    )
+    if(TARGET Qt6::Charts)
+        target_link_libraries(heterolink-host PRIVATE Qt6::Charts)
+        target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
+    endif()
+else()
+    target_link_libraries(heterolink-host PRIVATE
+        Qt5::Core
+        Qt5::Gui
+        Qt5::Widgets
+        Qt5::SerialPort
+    )
+    if(TARGET Qt5::Charts)
+        target_link_libraries(heterolink-host PRIVATE Qt5::Charts)
+        target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
+    endif()
 endif()
 
 # 包含目录

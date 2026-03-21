@@ -20,26 +20,40 @@ DataProcessor::DataProcessor(QObject *parent)
 
 DataProcessor::~DataProcessor()
 {
+    qDeleteAll(deviceData_);
 }
 
 void DataProcessor::setBufferSize(const QString& deviceId, int size)
 {
-    if (!deviceData_.contains(deviceId)) {
-        deviceData_[deviceId] = std::make_unique<DeviceData>(size);
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
+        deviceData_[deviceId] = new DeviceData(size);
     } else {
-        deviceData_[deviceId]->buffer.resize(size);
+        (*it)->maxBufferSize = size;
+        // 修剪缓冲区
+        while ((*it)->buffer.size() > size) {
+            (*it)->buffer.dequeue();
+        }
     }
-    LOG_INFO("Buffer size set for device " + deviceId.toStdString() + ": " + std::to_string(size));
+    LOG_INFO("Buffer size set for device " + deviceId + ": " + QString::number(size));
 }
 
 void DataProcessor::addData(const QString& deviceId, const TelemetryData& data)
 {
-    if (!deviceData_.contains(deviceId)) {
-        deviceData_[deviceId] = std::make_unique<DeviceData>(defaultBufferSize_);
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
+        deviceData_[deviceId] = new DeviceData(defaultBufferSize_);
+        it = deviceData_.find(deviceId);
     }
     
-    deviceData_[deviceId]->buffer.append(data);
-    deviceData_[deviceId]->lastUpdate = QDateTime::currentMSecsSinceEpoch();
+    (*it)->buffer.enqueue(data);
+    
+    // 保持缓冲区大小限制
+    while ((*it)->buffer.size() > (*it)->maxBufferSize) {
+        (*it)->buffer.dequeue();
+    }
+    
+    (*it)->lastUpdate = QDateTime::currentMSecsSinceEpoch();
     
     updateStats(deviceId, data);
     
@@ -48,47 +62,56 @@ void DataProcessor::addData(const QString& deviceId, const TelemetryData& data)
 
 QVector<TelemetryData> DataProcessor::getData(const QString& deviceId) const
 {
-    if (!deviceData_.contains(deviceId)) {
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
         return QVector<TelemetryData>();
     }
     
     QVector<TelemetryData> result;
-    const auto& buffer = deviceData_[deviceId]->buffer;
-    for (int i = 0; i < buffer.size(); ++i) {
-        result.append(buffer.at(i));
+    const auto& buffer = (*it)->buffer;
+    result.reserve(buffer.size());
+    for (const auto& item : buffer) {
+        result.append(item);
     }
     return result;
 }
 
 QVector<TelemetryData> DataProcessor::getLatestData(const QString& deviceId, int count) const
 {
-    if (!deviceData_.contains(deviceId)) {
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
         return QVector<TelemetryData>();
     }
     
-    QVector<TelemetryData> result;
-    const auto& buffer = deviceData_[deviceId]->buffer;
+    const auto& buffer = (*it)->buffer;
     int start = qMax(0, buffer.size() - count);
-    for (int i = start; i < buffer.size(); ++i) {
-        result.append(buffer.at(i));
+    QVector<TelemetryData> result;
+    result.reserve(buffer.size() - start);
+    
+    auto bit = buffer.begin();
+    std::advance(bit, start);
+    for (; bit != buffer.end(); ++bit) {
+        result.append(*bit);
     }
     return result;
 }
 
 QMap<int, ChannelStats> DataProcessor::getStats(const QString& deviceId) const
 {
-    if (!deviceData_.contains(deviceId)) {
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
         return QMap<int, ChannelStats>();
     }
     
-    return deviceData_[deviceId]->channelStats;
+    return (*it)->channelStats;
 }
 
 void DataProcessor::clearData(const QString& deviceId)
 {
-    if (deviceData_.contains(deviceId)) {
-        deviceData_[deviceId]->buffer.clear();
-        deviceData_[deviceId]->channelStats.clear();
+    auto it = deviceData_.find(deviceId);
+    if (it != deviceData_.end()) {
+        (*it)->buffer.clear();
+        (*it)->channelStats.clear();
         emit dataUpdated(deviceId);
         emit statsUpdated(deviceId);
     }
@@ -102,23 +125,31 @@ void DataProcessor::clearAll()
 
 bool DataProcessor::exportToCsv(const QString& deviceId, const QString& filePath) const
 {
-    if (!deviceData_.contains(deviceId)) {
-        LOG_ERROR("No data for device: " + deviceId.toStdString());
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
+        LOG_ERROR("No data for device: " + deviceId);
         return false;
     }
     
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        LOG_ERROR("Failed to open file: " + filePath.toStdString());
+        LOG_ERROR("Failed to open file: " + filePath);
         return false;
     }
     
     QTextStream out(&file);
     
     // 写入表头
-    const auto& data = deviceData_[deviceId]->buffer;
-    if (data.isEmpty()) {
+    const auto& buffer = (*it)->buffer;
+    if (buffer.isEmpty()) {
         return true;
+    }
+    
+    // 转换为 QVector 以便索引访问
+    QVector<TelemetryData> data;
+    data.reserve(buffer.size());
+    for (const auto& item : buffer) {
+        data.append(item);
     }
     
     int channelCount = data[0].channels.size();
@@ -138,26 +169,27 @@ bool DataProcessor::exportToCsv(const QString& deviceId, const QString& filePath
     }
     
     file.close();
-    LOG_INFO("Data exported to CSV: " + filePath.toStdString());
+    LOG_INFO("Data exported to CSV: " + filePath);
     return true;
 }
 
 bool DataProcessor::exportToJson(const QString& deviceId, const QString& filePath) const
 {
-    if (!deviceData_.contains(deviceId)) {
-        LOG_ERROR("No data for device: " + deviceId.toStdString());
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
+        LOG_ERROR("No data for device: " + deviceId);
         return false;
     }
     
-    const auto& data = deviceData_[deviceId]->buffer;
+    const auto& buffer = (*it)->buffer;
     QJsonArray jsonArray;
     
-    for (int i = 0; i < data.size(); ++i) {
+    for (const auto& item : buffer) {
         QJsonObject obj;
-        obj["timestamp"] = static_cast<qint64>(data[i].timestamp);
+        obj["timestamp"] = static_cast<qint64>(item.timestamp);
         
         QJsonArray channels;
-        for (const auto& ch : data[i].channels) {
+        for (const auto& ch : item.channels) {
             channels.append(ch);
         }
         obj["channels"] = channels;
@@ -169,19 +201,24 @@ bool DataProcessor::exportToJson(const QString& deviceId, const QString& filePat
     
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        LOG_ERROR("Failed to open file: " + filePath.toStdString());
+        LOG_ERROR("Failed to open file: " + filePath);
         return false;
     }
     
     file.write(doc.toJson());
     file.close();
-    LOG_INFO("Data exported to JSON: " + filePath.toStdString());
+    LOG_INFO("Data exported to JSON: " + filePath);
     return true;
 }
 
 void DataProcessor::updateStats(const QString& deviceId, const TelemetryData& data)
 {
-    auto& devData = deviceData_[deviceId];
+    auto it = deviceData_.find(deviceId);
+    if (it == deviceData_.end()) {
+        return;
+    }
+    
+    auto& devData = (*it);
     
     for (int i = 0; i < data.channels.size(); ++i) {
         float value = data.channels[i];

@@ -5,6 +5,7 @@
  */
 
 #include "Logger.h"
+#include <QString>
 #include <iostream>
 #include <fstream>
 #include <chrono>
@@ -67,6 +68,18 @@ void Logger::log(Level level, const std::string& message,
             file << formattedMsg << std::endl;
         }
     }
+}
+
+void Logger::log(Level level, const QString& message,
+                const char* file, int line)
+{
+    log(level, message.toStdString(), file, line);
+}
+
+void Logger::log(Level level, const char* message,
+                const char* file, int line)
+{
+    log(level, std::string(message), file, line);
 }
 
 std::string Logger::formatMessage(Level level, const std::string& message,

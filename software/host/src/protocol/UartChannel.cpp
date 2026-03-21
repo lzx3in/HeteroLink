@@ -49,15 +49,14 @@ bool UartChannel::connect(const UartConfig& config)
     serialPort_->setFlowControl(config.flowControl);
     
     // 连接信号
-    connect(serialPort_.get(), &QSerialPort::readyRead,
+    QObject::connect(serialPort_.get(), &QSerialPort::readyRead,
             this, &UartChannel::onReadyRead);
-    connect(serialPort_.get(), 
-            static_cast<void (QSerialPort::*)(QSerialPort::SerialPortError)>(&QSerialPort::error),
+    QObject::connect(serialPort_.get(), &QSerialPort::errorOccurred,
             this, &UartChannel::onErrorOccurred);
     
     // 打开串口
     if (!serialPort_->open(QIODevice::ReadWrite)) {
-        LOG_ERROR("Failed to open serial port: " + config.portName.toStdString());
+        LOG_ERROR("Failed to open serial port: " + config.portName);
         emit errorOccurred("Failed to open serial port: " + serialPort_->errorString());
         serialPort_.reset();
         return false;
@@ -65,8 +64,8 @@ bool UartChannel::connect(const UartConfig& config)
     
     connected_ = true;
     readBuffer_.clear();
-    LOG_INFO("UART connected: " + config.portName.toStdString() + 
-             " @ " + std::to_string(config.baudRate));
+    LOG_INFO("UART connected: " + config.portName + 
+             " @ " + QString::number(config.baudRate));
     emit connectionChanged(true);
     
     return true;
@@ -150,10 +149,10 @@ void UartChannel::onReadyRead()
             readBuffer_.remove(0, consumed);
             
             // 处理帧
-            if (frame.command == static_cast<uint8_t>(Protocol::Command::CMD_TELEMETRY)) {
+            if (frame.command == static_cast<uint8_t>(Command::CMD_TELEMETRY)) {
                 TelemetryData telemetry = Protocol::parseTelemetry(frame.payload);
                 emit telemetryReceived(frame.deviceId, telemetry);
-            } else if (frame.command == static_cast<uint8_t>(Protocol::Command::CMD_ERROR)) {
+            } else if (frame.command == static_cast<uint8_t>(Command::CMD_ERROR)) {
                 if (!frame.payload.empty()) {
                     ErrorCode error = static_cast<ErrorCode>(frame.payload[0]);
                     emit errorReceived(frame.deviceId, error);
@@ -179,10 +178,10 @@ void UartChannel::onErrorOccurred(QSerialPort::SerialPortError error)
     }
     
     QString errorMsg = "UART error: " + serialPort_->errorString();
-    LOG_ERROR(errorMsg.toStdString());
+    LOG_ERROR(errorMsg);
     emit errorOccurred(errorMsg);
     
-    if (error == QSerialPort::ResourceError || error == QSerialPort::DeviceError) {
+    if (error == QSerialPort::ResourceError || error == QSerialPort::OpenError) {
         disconnect();
     }
 }
@@ -225,7 +224,7 @@ bool UartChannel::parseFrame(const QByteArray& buffer, Frame& frame, int& consum
     // 解析帧头
     uint16_t header = static_cast<uint8_t>(buffer[0]) | 
                      (static_cast<uint8_t>(buffer[1]) << 8);
-    if (header != Protocol::FRAME_HEADER) {
+    if (header != FRAME_HEADER) {
         consumed = 1;  // 跳过第一个字节
         return false;
     }

@@ -19,6 +19,8 @@ class Application;
 class DevicePanel;
 class DataWidget;
 class ConfigPanel;
+struct TelemetryData;
+struct AlarmRecord;
 
 /**
  * @brief 主窗口类

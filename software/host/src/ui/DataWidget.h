@@ -11,9 +11,10 @@
 #include <QMap>
 #include <QVector>
 #include <memory>
-
-class QCustomPlot;
-class QTableWidget;
+#include <QTableWidget>
+#include <QLabel>
+#include <QComboBox>
+#include <QPushButton>
 
 namespace HeteroLink {
 
@@ -69,12 +70,13 @@ private slots:
     void onClearClicked();
     
 private:
-    QCustomPlot *plot_;
+    QWidget *plotPlaceholder_;  // 图表占位（需要 QCustomPlot 或 QCharts）
     QTableWidget *table_;
     QComboBox *deviceCombo_;
     QComboBox *modeCombo_;
     QPushButton *exportBtn_;
     QPushButton *clearBtn_;
+    QLabel *statusLabel_;
     
     DataProcessor* dataProcessor_ = nullptr;
     QString currentDevice_;

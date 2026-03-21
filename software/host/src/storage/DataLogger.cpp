@@ -34,7 +34,7 @@ bool DataLogger::startRecording(const QString& basePath, const QString& deviceId
     QDir dir(basePath);
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            LOG_ERROR("Failed to create directory: " + basePath.toStdString());
+            LOG_ERROR("Failed to create directory: " + basePath);
             return false;
         }
     }
@@ -47,7 +47,7 @@ bool DataLogger::startRecording(const QString& basePath, const QString& deviceId
     bytesWritten_ = 0;
     lastSplitTime_ = QDateTime::currentMSecsSinceEpoch();
     
-    LOG_INFO("Recording started: " + currentFilePath().toStdString());
+    LOG_INFO("Recording started: " + currentFilePath());
     emit recordingStarted(currentFilePath());
     
     return true;
@@ -107,9 +107,8 @@ void DataLogger::writeData(const QString& deviceId, const TelemetryData& data)
     }
     line += "\n";
     
-    QByteArray bytes = line.toUtf8();
-    qint64 written = stream_->writeString(bytes);
-    bytesWritten_ += written;
+    *stream_ << line;
+    bytesWritten_ += line.toUtf8().size();
     
     // 检查是否需要分割文件
     if (autoSplit_) {
@@ -132,7 +131,7 @@ bool DataLogger::openFile()
     
     file_ = std::make_unique<QFile>(filePath);
     if (!file_->open(QIODevice::WriteOnly | QIODevice::Text)) {
-        LOG_ERROR("Failed to open file: " + filePath.toStdString());
+        LOG_ERROR("Failed to open file: " + filePath);
         emit errorOccurred("Failed to open file: " + file_->errorString());
         file_.reset();
         stream_.reset();
@@ -179,7 +178,7 @@ void DataLogger::writeHeader()
     }
     header += "\n";
     
-    stream_->writeString(header.toUtf8());
+    *stream_ << header;
     stream_->flush();
 }
 
@@ -196,7 +195,7 @@ void DataLogger::splitFile()
     bytesWritten_ = 0;
     lastSplitTime_ = QDateTime::currentMSecsSinceEpoch();
     
-    LOG_INFO("File split: " + oldPath.toStdString() + " -> " + currentFilePath().toStdString());
+    LOG_INFO("File split: " + oldPath + " -> " + currentFilePath());
     emit fileSplit(oldPath, currentFilePath());
 }
 

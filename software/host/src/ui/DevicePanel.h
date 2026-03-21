@@ -10,7 +10,11 @@
 #include <QWidget>
 #include <QListWidget>
 #include <QMap>
+#include <QComboBox>
+#include <QPushButton>
 #include <memory>
+
+#include "core/DeviceManager.h"
 
 namespace HeteroLink {
 
@@ -45,13 +49,19 @@ public:
      */
     void refreshPorts();
     
+    /**
+     * @brief 获取当前选中的设备 ID
+     * @return 设备 ID
+     */
+    QString getCurrentDeviceId() const;
+    
 signals:
     /**
      * @brief 请求连接设备
      * @param deviceId 设备 ID
      * @param portName 串口号
      */
-    requestConnect(const QString& deviceId, const QString& portName);
+    void requestConnect(const QString& deviceId, const QString& portName);
     
     /**
      * @brief 请求断开设备

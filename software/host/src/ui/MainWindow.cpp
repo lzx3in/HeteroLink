@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QLabel>
+#include <QSystemTrayIcon>
 
 namespace HeteroLink {
 
@@ -124,20 +125,20 @@ void MainWindow::updateStatusBar()
 void MainWindow::showAlarmNotification(const AlarmRecord& record)
 {
     QString title;
-    QIcon icon;
+    QMessageBox::Icon icon;
     
     switch (record.level) {
         case AlarmLevel::INFO:
             title = "信息";
-            icon = QMessageBox::Information;
+            icon = QMessageBox::Icon::Information;
             break;
         case AlarmLevel::WARNING:
             title = "警告";
-            icon = QMessageBox::Warning;
+            icon = QMessageBox::Icon::Warning;
             break;
         case AlarmLevel::CRITICAL:
             title = "严重";
-            icon = QMessageBox::Critical;
+            icon = QMessageBox::Icon::Critical;
             break;
     }
     
@@ -166,8 +167,8 @@ void MainWindow::on_actionConnect_triggered()
 
 void MainWindow::on_actionDisconnect_triggered()
 {
-    if (devicePanel_->deviceList_->currentItem()) {
-        QString deviceId = devicePanel_->deviceList_->currentItem()->data(Qt::UserRole).toString();
+    QString deviceId = devicePanel_->getCurrentDeviceId();
+    if (!deviceId.isEmpty()) {
         application_->deviceManager()->disconnectDevice(deviceId);
     }
 }
@@ -186,8 +187,8 @@ void MainWindow::on_actionStop_triggered()
 
 void MainWindow::on_actionExport_triggered()
 {
-    if (devicePanel_->deviceList_->currentItem()) {
-        QString deviceId = devicePanel_->deviceList_->currentItem()->data(Qt::UserRole).toString();
+    QString deviceId = devicePanel_->getCurrentDeviceId();
+    if (!deviceId.isEmpty()) {
         application_->dataProcessor()->exportToCsv(deviceId, "~/heterolink_export.csv");
         statusBar()->showMessage("数据已导出", 3000);
     }

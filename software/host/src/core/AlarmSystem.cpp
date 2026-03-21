@@ -37,8 +37,8 @@ void AlarmSystem::configureAlarm(const QString& deviceId, const AlarmConfig& con
         configs.append(config);
     }
     
-    LOG_INFO("Alarm configured for device " + deviceId.toStdString() + 
-             " channel " + std::to_string(config.channelId));
+    LOG_INFO("Alarm configured for device " + deviceId + 
+             " channel " + QString::number(config.channelId));
 }
 
 QVector<AlarmConfig> AlarmSystem::getAlarms(const QString& deviceId) const
@@ -56,9 +56,9 @@ void AlarmSystem::setAlarmEnabled(const QString& deviceId, int channelId, bool e
     for (auto& cfg : configs) {
         if (cfg.channelId == channelId) {
             cfg.enabled = enabled;
-            LOG_INFO("Alarm " + (enabled ? "enabled" : "disabled") + 
-                     " for device " + deviceId.toStdString() + 
-                     " channel " + std::to_string(channelId));
+            LOG_INFO("Alarm " + QString(enabled ? "enabled" : "disabled") + 
+                     " for device " + deviceId + 
+                     " channel " + QString::number(channelId));
             break;
         }
     }
@@ -96,8 +96,8 @@ void AlarmSystem::checkData(const QString& deviceId, const TelemetryData& data)
             // 值回到正常范围，清除告警
             activeAlarms_[deviceId][config.channelId] = false;
             emit alarmCleared(deviceId, config.channelId);
-            LOG_INFO("Alarm cleared for device " + deviceId.toStdString() + 
-                     " channel " + std::to_string(config.channelId));
+            LOG_INFO("Alarm cleared for device " + deviceId + 
+                     " channel " + QString::number(config.channelId));
         }
     }
 }
@@ -126,8 +126,8 @@ void AlarmSystem::acknowledgeAlarm(const QString& deviceId, int channelId)
     for (auto& record : records) {
         if (record.channelId == channelId && !record.acknowledged) {
             record.acknowledged = true;
-            LOG_INFO("Alarm acknowledged for device " + deviceId.toStdString() + 
-                     " channel " + std::to_string(channelId));
+            LOG_INFO("Alarm acknowledged for device " + deviceId + 
+                     " channel " + QString::number(channelId));
             break;
         }
     }
@@ -136,7 +136,7 @@ void AlarmSystem::acknowledgeAlarm(const QString& deviceId, int channelId)
 void AlarmSystem::clearRecords(const QString& deviceId)
 {
     alarmRecords_.remove(deviceId);
-    LOG_INFO("Alarm records cleared for device: " + deviceId.toStdString());
+    LOG_INFO("Alarm records cleared for device: " + deviceId);
 }
 
 void AlarmSystem::triggerAlarm(const QString& deviceId, int channelId, AlarmLevel level,
@@ -163,7 +163,7 @@ void AlarmSystem::triggerAlarm(const QString& deviceId, int channelId, AlarmLeve
     }
     alarmRecords_[deviceId].append(record);
     
-    LOG_WARNING("Alarm triggered: " + message.toStdString());
+    LOG_WARNING("Alarm triggered: " + message);
     emit alarmTriggered(deviceId, record);
 }
 
