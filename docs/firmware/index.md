@@ -1,146 +1,169 @@
-# HeteroLink 固件文档
+= HeteroLink 固件文档索引
 
-ESP32 固件开发文档和 API 参考。
+ESP32 协处理器子板固件系统文档。
 
----
+== 📚 文档导航
 
-## 📚 文档导航
+=== 核心文档
 
-### 核心文档
+* link:architecture.adoc[固件架构] - 系统设计、组件结构、数据流
+* link:configuration.adoc[配置指南] - menuconfig 选项、sdkconfig 配置
+* link:../software/protocol-spec.adoc[协议规范] - UART 二进制协议、MQTT 协议
 
-- [架构设计](architecture.md) - 系统架构和组件设计
-- [配置指南](configuration.md) - 编译和配置选项
-- [API 参考](api-reference.md) - 接口文档
+=== 快速开始
 
-### 协议规范
+* link:../../getting-started/quick-start.adoc[快速开始] - 5 分钟上手指南
+* link:../../getting-started/installation.adoc[安装指南] - ESP-IDF 环境搭建
+* link:../../getting-started/troubleshooting.adoc[故障排查] - 常见问题解决
 
-- [MQTT 协议](mqtt-protocol.md) - 远端通信协议
-- [UART 协议](uart-protocol.md) - 近端通信协议
+=== 组件文档
 
-### 开发指南
+* link:../software/mqtt-guide.adoc[MQTT 使用指南] - MQTT 配置、Topic 规范、示例
+* `components/spi_dma/` - SPI+DMA 驱动 API 文档
+* `components/uart_protocol/` - UART 协议栈 API 文档
+* `components/adc_gpio_probe/` - ADC/GPIO 探测 API 文档
 
-- [快速开始](../getting-started/quick-start.md) - 入门教程
-- [示例项目](../examples/README.md) - 代码示例
-- [问题排查](../getting-started/troubleshooting.md) - 常见问题
+=== 示例代码
 
----
+* link:../examples/[示例项目] - 参考设计和测试代码
 
-## 🔧 固件功能
+== 🏗️ 固件架构概览
 
-### 已实现
+....
+┌─────────────────────────────────────────────────────────────┐
+│                    应用层 (Application)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
+│  │ WiFi 管理     │  │ MQTT 客户端   │  │ 主循环任务      │   │
+│  │              │  │              │  │ 数据采集/控制    │   │
+│  └──────────────┘  └──────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   协议层 (Protocol)                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
+│  │ UART 协议栈  │  │ SPI+DMA      │  │ ADC/GPIO 探测    │   │
+│  │ 近端通信      │  │ 板间通信      │  │ 双模点测        │   │
+│  └──────────────┘  └──────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   驱动层 (Driver)                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
+│  │ ESP-IDF HAL  │  │ 自定义驱动    │  │ 外设驱动        │   │
+│  └──────────────┘  └──────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+....
 
-- ✅ WiFi 连接管理
-- ✅ MQTT5 远端通道
-- ✅ 设备状态上报
-- ✅ Last Will 遗嘱消息
-- ✅ 自动重连机制
+== 📦 组件列表
 
-### 开发中
+[cols="1,2,1",options="header"]
+|===
+|*组件* |*功能* |*状态*
 
-- 🟡 UART 近端通道 (自定义二进制协议)
-- 🟡 SPI+DMA 高速数据传输
-- 🟡 GPIO/ADC 双模点测
-- 🟡 OTA 固件升级
+|`main`
+|主应用程序，WiFi/MQTT 管理，主循环任务
+|✅ 完成
 
-### 计划中
+|`spi_dma`
+|SPI+DMA 高速数据传输驱动
+|✅ 完成
 
-- 🔴 安全启动
-- 🔴 Flash 加密
-- 🔴 MQTT over TLS
-- 🔴 本地数据存储
+|`uart_protocol`
+|UART 自定义二进制协议栈
+|✅ 完成
 
----
+|`adc_gpio_probe`
+|ADC/GPIO 双模点测功能
+|✅ 完成
 
-## 📦 组件列表
+|`protocol_examples_common`
+|ESP-IDF 通用组件（WiFi 连接）
+|✅ 使用官方组件
 
-| 组件 | 状态 | 描述 |
-|------|------|------|
-| heterolink_core | 🟡 开发中 | 核心库 |
-| mqtt_client | ✅ 已完成 | MQTT 客户端 |
-| uart_protocol | 🔴 计划中 | UART 协议栈 |
-| spi_dma | 🔴 计划中 | SPI+DMA 驱动 |
-| adc_gpio_probe | 🔴 计划中 | ADC/GPIO 探测 |
+|`espressif/mqtt`
+|ESP-MQTT 客户端库
+|✅ 使用官方组件
+|===
 
----
+== 🚀 快速链接
 
-## 🎯 开发环境
+=== 开发流程
 
-### 要求
+. link:../../getting-started/installation.adoc[安装 ESP-IDF]
+. link:../../getting-started/quick-start.adoc[编译固件]
+. link:../../getting-started/quick-start.adoc#烧录固件[烧录测试]
+. link:troubleshooting.adoc[故障排查]
 
-- ESP-IDF v5.3+
-- ESP32 / ESP32-S3 / ESP32-C3 / ESP32-C6
-- C/C++ 开发经验
+=== 常用命令
 
-### 工具
-
-```bash
-# 安装 ESP-IDF
-git clone -b v5.3 --recursive https://github.com/espressif/esp-idf.git
-cd esp-idf
-./install.sh esp32 esp32s3 esp32c6
-. export.sh
-
-# 验证安装
-idf.py --version
-```
-
----
-
-## 📖 快速开始
-
-```bash
-# 克隆项目
-git clone https://github.com/HeteroLink/HeteroLink.git
-cd HeteroLink/firmware/esp32/subboard
-
-# 设置目标芯片
-idf.py set-target esp32c6
-
-# 配置项目
-idf.py menuconfig
-
+[source,bash]
+----
 # 编译
 idf.py build
 
 # 烧录
-idf.py -p /dev/ttyUSB0 flash monitor
-```
+idf.py -p /dev/ttyUSB0 flash
 
-详细教程：[快速开始指南](../getting-started/quick-start.md)
+# 监视
+idf.py -p /dev/ttyUSB0 monitor
+
+# 测试
+idf.py test
+
+# 清理
+idf.py fullclean
+----
+
+=== 配置工具
+
+[source,bash]
+----
+# menuconfig
+idf.py menuconfig
+
+# 查看配置
+idf.py read-project-config
+
+# 保存配置模板
+idf.py save-defconfig
+----
+
+== 📊 通信通道
+
+HeteroLink 支持三种通信通道：
+
+[cols="1,1,1,1",options="header"]
+|===
+|*通道* |*协议* |*用途* |*性能*
+
+|远端通道
+|MQTT over WiFi
+|设备状态上云、远程控制、告警推送
+|集群管理
+
+|近端通道
+|UART 自定义二进制
+|高频遥测、指令下发
+|kHz 级数据上传
+
+|板间通道
+|SPI+DMA
+|高速双向数据传输
+|MHz 级时钟
+
+|点测通道
+|GPIO+ADC
+|数字逻辑探测 + 模拟信号采集
+|零代码即插即用
+|===
+
+== 🔗 相关资源
+
+* link:../../README.adoc[项目主页]
+* link:../../CHANGELOG.md[更新日志]
+* link:../../CONTRIBUTING.md[贡献指南]
+* https://docs.espressif.com/projects/esp-idf/en/latest/[ESP-IDF 官方文档]
 
 ---
 
-## 🤝 贡献固件
-
-### 开发流程
-
-1. Fork 项目
-2. 创建功能分支
-3. 开发和测试
-4. 提交 PR
-
-### 代码规范
-
-- 遵循 ESP-IDF 编码规范
-- 添加必要的注释
-- 编写单元测试
-- 更新文档
-
-### 提交 PR
-
-在 PR 描述中说明：
-- 功能描述
-- 测试情况
-- 相关 Issue
-
----
-
-## 📞 技术支持
-
-- 📖 [配置指南](configuration.md)
-- ❓ [问题排查](../getting-started/troubleshooting.md)
-- 💬 [社区讨论](https://github.com/HeteroLink/HeteroLink/discussions)
-
----
-
-**最后更新**: 2026-03-21
+*最后更新*: 2026-03-21

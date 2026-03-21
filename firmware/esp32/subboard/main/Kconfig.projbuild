@@ -1,24 +1,96 @@
 menu "HeteroLink Configuration"
 
-    config EXAMPLE_WIFI_SSID
-        string "WiFi SSID"
-        default ""
-        help
-            WiFi network name (SSID)
+    menu "WiFi Configuration"
+        config HETERO_WIFI_SSID
+            string "WiFi SSID"
+            default ""
+            help
+                WiFi network name (SSID)
 
-    config EXAMPLE_WIFI_PASSWORD
-        string "WiFi Password"
-        default ""
-        help
-            WiFi password (WPA/WPA2)
-            
-    config EXAMPLE_MQTT_BROKER_URI
-        string "MQTT Broker URI"
-        default "mqtt://test.mosquitto.org:1883"
-        help
-            MQTT broker URI. Examples:
-            - mqtt://test.mosquitto.org:1883 (public test broker)
-            - mqtt://192.168.1.100:1883 (local broker)
-            - mqtts://broker.emqx.io:8883 (TLS)
+        config HETERO_WIFI_PASSWORD
+            string "WiFi Password"
+            default ""
+            help
+                WiFi password
+
+        config HETERO_WIFI_AUTO_RECONNECT
+            bool "Auto Reconnect"
+            default y
+            help
+                Automatically reconnect to WiFi on disconnect
+    endmenu
+
+    menu "MQTT Configuration"
+        config HETERO_MQTT_BROKER_URI
+            string "MQTT Broker URI"
+            default "mqtt://broker.emqx.io"
+            help
+                MQTT broker URI (e.g., mqtt://broker.emqx.io)
+
+        config HETERO_MQTT_BROKER_PORT
+            int "MQTT Broker Port"
+            default 1883
+            help
+                MQTT broker port
+
+        config HETERO_MQTT_CLIENT_ID
+            string "MQTT Client ID"
+            default "heterolink_subboard_001"
+            help
+                MQTT client identifier
+
+        config HETERO_MQTT_USERNAME
+            string "MQTT Username (optional)"
+            default ""
+            help
+                MQTT username (leave empty for no authentication)
+
+        config HETERO_MQTT_PASSWORD
+            string "MQTT Password (optional)"
+            default ""
+            help
+                MQTT password (leave empty for no authentication)
+    endmenu
+
+    menu "Device Configuration"
+        config HETERO_DEVICE_ID
+            string "Device ID"
+            default "subboard_001"
+            help
+                Unique device identifier
+
+        config HETERO_DATA_UPLOAD_INTERVAL
+            int "Data Upload Interval (ms)"
+            default 1000
+            help
+                Interval for uploading telemetry data
+
+        config HETERO_ENABLE_UART_PROTOCOL
+            bool "Enable UART Protocol"
+            default y
+            help
+                Enable UART binary protocol (near-end channel)
+
+        config HETERO_ENABLE_SPI_DMA
+            bool "Enable SPI+DMA"
+            default n
+            help
+                Enable SPI+DMA high-speed data transfer
+
+        config HETERO_ENABLE_ADC_GPIO_PROBE
+            bool "Enable ADC/GPIO Probe"
+            default y
+            help
+                Enable ADC/GPIO dual-mode probing
+    endmenu
+
+    menu "Debug Configuration"
+        config HETERO_LOG_LEVEL
+            int "Log Level"
+            default 3
+            range 0 4
+            help
+                Log level: 0=None, 1=Error, 2=Warning, 3=Info, 4=Debug
+    endmenu
 
 endmenu

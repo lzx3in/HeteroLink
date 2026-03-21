@@ -53,7 +53,7 @@ cd HeteroLink
 
 [source,bash]
 ----
-cd software/esp32/subboard
+cd firmware/esp32/subboard
 
 # 设置目标芯片
 idf.py set-target esp32c6
@@ -125,7 +125,8 @@ mosquitto_pub -h broker.emqx.io \
 
 == 🎯 下一步
 
-* 📖 阅读 link:../hardware/ARCHITECTURE.adoc[架构文档]
+* 📖 阅读 link:../firmware/architecture.adoc[固件架构文档]
+* 📡 查看 link:../software/protocol-spec.adoc[协议规范]
 * 🔧 查看 link:../../examples/[示例项目]
 * 💬 加入 https://github.com/HeteroLink/HeteroLink/discussions[讨论区]
 
