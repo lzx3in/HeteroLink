@@ -5,7 +5,7 @@
 
 /**
  * @file adc_gpio_probe.c
- * @brief ADC/GPIO 双模点测功能实现
+ * @brief ADC/GPIO 双模点测功能实现（ESP-IDF v6.0 适配）
  */
 
 #include <string.h>
@@ -13,31 +13,25 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
-#include "driver/adc.h"
-#include "esp_adc_cal.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 #include "adc_gpio_probe.h"
 
 static const char *TAG = "adc_gpio_probe";
 
-/**
- * @brief ADC 校准特性
- */
-static esp_adc_cal_characteristics_t *adc_chars;
-
 int adc_gpio_probe_adc_to_mv(uint32_t adc_value, adc_atten_t attenuation)
 {
-    if (!adc_chars) {
-        // 简单估算：根据衰减计算
-        switch (attenuation) {
-            case ADC_ATTEN_DB_0:   return (adc_value * 950) / 4095;
-            case ADC_ATTEN_DB_2_5: return (adc_value * 1250) / 4095;
-            case ADC_ATTEN_DB_6:   return (adc_value * 1750) / 4095;
-            case ADC_ATTEN_DB_11:  return (adc_value * 2450) / 4095;
-            default: return (adc_value * 2450) / 4095;
-        }
+    // 简单估算：根据衰减计算最大电压
+    // ESP32-C6 ADC 参考电压约 3.3V
+    // ESP-IDF v6.0: ADC_ATTEN_DB_12 替代了 ADC_ATTEN_DB_11
+    switch (attenuation) {
+        case ADC_ATTEN_DB_0:   return (adc_value * 950) / 4095;
+        case ADC_ATTEN_DB_2_5: return (adc_value * 1250) / 4095;
+        case ADC_ATTEN_DB_6:   return (adc_value * 1750) / 4095;
+        case ADC_ATTEN_DB_12:  return (adc_value * 2450) / 4095;
+        default: return (adc_value * 2450) / 4095;
     }
-    
-    return esp_adc_cal_raw_to_voltage(adc_value, adc_chars);
 }
 
 esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config, 
@@ -47,28 +41,93 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGI(TAG, "Initializing ADC/GPIO Probe...");
+    ESP_LOGI(TAG, "Initializing ADC/GPIO Probe (ESP-IDF v6.0)...");
     ESP_LOGI(TAG, "  Channel Count: %zu", config->channel_count);
     ESP_LOGI(TAG, "  Sample Interval: %lu ms", config->sample_interval_ms);
 
-    // 初始化 ADC 校准
-    adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
-    if (!adc_chars) {
-        ESP_LOGE(TAG, "Failed to allocate ADC characteristics");
-        return ESP_ERR_NO_MEM;
+    // 初始化句柄
+    memset(out_handle, 0, sizeof(adc_gpio_probe_device_t));
+    out_handle->adc1_handle = NULL;
+    out_handle->adc2_handle = NULL;
+    out_handle->cali_handle = NULL;
+
+    // 检查是否需要 ADC
+    bool need_adc1 = false;
+    bool need_adc2 = false;
+    
+    for (size_t i = 0; i < config->channel_count; i++) {
+        if (config->channels[i].mode == PROBE_MODE_ADC) {
+            if (config->channels[i].adc_unit == 1) {
+                need_adc1 = true;
+            } else {
+                need_adc2 = true;
+            }
+        }
     }
-    
-    // 配置 ADC1（假设使用 ADC1）
-    adc1_config_width(config->channels[0].bit_width);
-    
+
+    // 初始化 ADC1
+    if (need_adc1) {
+        adc_oneshot_unit_init_cfg_t init_config = {
+            .unit_id = ADC_UNIT_1,
+        };
+        esp_err_t ret = adc_oneshot_new_unit(&init_config, &out_handle->adc1_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize ADC1 unit: %s", esp_err_to_name(ret));
+            return ret;
+        }
+        ESP_LOGI(TAG, "  ADC1 unit initialized");
+    }
+
+    // 初始化 ADC2（如果需要）
+    if (need_adc2) {
+        adc_oneshot_unit_init_cfg_t init_config = {
+            .unit_id = ADC_UNIT_2,
+        };
+        esp_err_t ret = adc_oneshot_new_unit(&init_config, &out_handle->adc2_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize ADC2 unit: %s", esp_err_to_name(ret));
+            if (out_handle->adc1_handle) {
+                adc_oneshot_del_unit(out_handle->adc1_handle);
+            }
+            return ret;
+        }
+        ESP_LOGI(TAG, "  ADC2 unit initialized");
+    }
+
+    // 配置 ADC 通道和校准
     for (size_t i = 0; i < config->channel_count; i++) {
         const probe_channel_config_t *ch = &config->channels[i];
         
         if (ch->mode == PROBE_MODE_ADC) {
             // 配置 ADC 通道
-            adc1_config_channel_atten(ch->adc_channel, ch->attenuation);
-            ESP_LOGI(TAG, "  CH%u: ADC (GPIO%d, ATTEN=%d)", 
-                     ch->channel_num, ch->gpio_num, ch->attenuation);
+            adc_oneshot_chan_cfg_t chan_config = {
+                .atten = ch->attenuation,
+                .bitwidth = ch->bit_width,
+            };
+            
+            esp_err_t ret;
+            if (ch->adc_unit == 1) {
+                ret = adc_oneshot_config_channel(out_handle->adc1_handle, 
+                                                  ch->adc_channel, &chan_config);
+            } else {
+                ret = adc_oneshot_config_channel(out_handle->adc2_handle, 
+                                                  ch->adc_channel, &chan_config);
+            }
+            
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to configure ADC channel %d: %s", 
+                         ch->adc_channel, esp_err_to_name(ret));
+                if (out_handle->adc1_handle) {
+                    adc_oneshot_del_unit(out_handle->adc1_handle);
+                }
+                if (out_handle->adc2_handle) {
+                    adc_oneshot_del_unit(out_handle->adc2_handle);
+                }
+                return ret;
+            }
+            
+            ESP_LOGI(TAG, "  CH%u: ADC (unit=%d, ch=%d, ATTEN=%d)", 
+                     ch->channel_num, ch->adc_unit, ch->adc_channel, ch->attenuation);
         } else {
             // 配置 GPIO
             gpio_config_t io_conf = {
@@ -83,7 +142,12 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
             esp_err_t ret = gpio_config(&io_conf);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to configure GPIO%d: %s", ch->gpio_num, esp_err_to_name(ret));
-                free(adc_chars);
+                if (out_handle->adc1_handle) {
+                    adc_oneshot_del_unit(out_handle->adc1_handle);
+                }
+                if (out_handle->adc2_handle) {
+                    adc_oneshot_del_unit(out_handle->adc2_handle);
+                }
                 return ret;
             }
             
@@ -104,7 +168,7 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
     out_handle->initialized = true;
     out_handle->sampling = false;
 
-    ESP_LOGI(TAG, "ADC/GPIO Probe initialized successfully");
+    ESP_LOGI(TAG, "ADC/GPIO Probe initialized successfully (ESP-IDF v6.0)");
     return ESP_OK;
 }
 
@@ -116,9 +180,19 @@ esp_err_t adc_gpio_probe_deinit(adc_gpio_probe_device_t *handle)
 
     ESP_LOGI(TAG, "Deinitializing ADC/GPIO Probe...");
     
-    if (adc_chars) {
-        free(adc_chars);
-        adc_chars = NULL;
+    // 删除 ADC 句柄
+    if (handle->adc1_handle) {
+        adc_oneshot_del_unit(handle->adc1_handle);
+        handle->adc1_handle = NULL;
+    }
+    if (handle->adc2_handle) {
+        adc_oneshot_del_unit(handle->adc2_handle);
+        handle->adc2_handle = NULL;
+    }
+    // ESP-IDF v6.0: 校准句柄清理（如果使用了校准）
+    if (handle->cali_handle) {
+        // 校准句柄由框架管理，通常不需要手动删除
+        handle->cali_handle = NULL;
     }
     
     handle->initialized = false;
@@ -164,42 +238,45 @@ esp_err_t adc_gpio_probe_read_channel(adc_gpio_probe_device_t *handle,
     
     // 查找通道
     probe_channel_state_t *state = NULL;
+    const probe_channel_config_t *ch_config = NULL;
+    
     for (size_t i = 0; i < handle->config.channel_count; i++) {
-        if (handle->states[i].channel_num == channel_num) {
+        if (handle->config.channels[i].channel_num == channel_num) {
             state = &handle->states[i];
+            ch_config = &handle->config.channels[i];
             break;
         }
     }
     
-    if (!state || !state->enabled) {
+    if (!state || !state->enabled || !ch_config) {
         ESP_LOGE(TAG, "Channel %u not found or disabled", channel_num);
         return ESP_ERR_NOT_FOUND;
     }
     
     // 根据模式读取
     if (state->mode == PROBE_MODE_ADC) {
-        // 找到对应的 ADC 通道配置
-        const probe_channel_config_t *ch_config = NULL;
-        for (size_t i = 0; i < handle->config.channel_count; i++) {
-            if (handle->config.channels[i].channel_num == channel_num) {
-                ch_config = &handle->config.channels[i];
-                break;
-            }
-        }
-        
-        if (!ch_config) {
-            return ESP_ERR_NOT_FOUND;
-        }
-        
         // 读取 ADC 值
-        uint32_t adc_value = adc1_get_raw(ch_config->adc_channel);
-        state->data.adc_value = adc_value;
-        *out_value = adc_value;
+        int adc_value = 0;
+        esp_err_t ret;
         
-        ESP_LOGD(TAG, "CH%u ADC: %lu", channel_num, adc_value);
+        if (ch_config->adc_unit == 1) {
+            ret = adc_oneshot_read(handle->adc1_handle, ch_config->adc_channel, &adc_value);
+        } else {
+            ret = adc_oneshot_read(handle->adc2_handle, ch_config->adc_channel, &adc_value);
+        }
+        
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "ADC read failed: %s", esp_err_to_name(ret));
+            return ret;
+        }
+        
+        state->data.adc_value = (uint32_t)adc_value;
+        *out_value = (uint32_t)adc_value;
+        
+        ESP_LOGD(TAG, "CH%u ADC: %lu", channel_num, (uint32_t)adc_value);
     } else {
         // GPIO 模式
-        bool value = gpio_get_level(handle->config.channels[channel_num].gpio_num);
+        bool value = gpio_get_level(ch_config->gpio_num);
         state->data.gpio_value = value;
         *out_value = value ? 1 : 0;
         

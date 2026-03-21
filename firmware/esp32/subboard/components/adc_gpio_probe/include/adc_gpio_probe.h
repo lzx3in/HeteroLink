@@ -5,7 +5,7 @@
 
 /**
  * @file adc_gpio_probe.h
- * @brief ADC/GPIO 双模点测功能
+ * @brief ADC/GPIO 双模点测功能（ESP-IDF v6.0 适配）
  * 
  * 功能：
  * - GPIO 数字逻辑探测（双模：输入/输出）
@@ -20,7 +20,9 @@
 #include <stdbool.h>
 #include "esp_err.h"
 #include "driver/gpio.h"
-#include "driver/adc.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,10 +55,10 @@ typedef struct {
     bool pull_down_en;            /*!< 下拉使能 */
     
     // ADC 模式配置
-    adc_unit_t adc_unit;          /*!< ADC 单元 (ADC_UNIT_1 或 ADC_UNIT_2) */
-    adc1_channel_t adc_channel;   /*!< ADC1 通道 */
+    int adc_unit;                 /*!< ADC 单元 (1 或 2) */
+    int adc_channel;              /*!< ADC 通道编号 */
     adc_atten_t attenuation;      /*!< 衰减设置 */
-    adc_bits_width_t bit_width;   /*!< 分辨率 */
+    adc_bitwidth_t bit_width;     /*!< 分辨率 */
 } probe_channel_config_t;
 
 /**
@@ -89,6 +91,10 @@ typedef struct {
     probe_channel_state_t states[PROBE_MAX_CHANNELS];
     bool initialized;
     bool sampling;
+    // ESP-IDF v6.0 ADC 句柄
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_unit_handle_t adc2_handle;
+    adc_cali_handle_t cali_handle;
 } adc_gpio_probe_device_t;
 
 /**
@@ -96,12 +102,12 @@ typedef struct {
  */
 #define ADC_GPIO_PROBE_DEFAULT_CONFIG() { \
     .channels = { \
-        { .channel_num = 0, .mode = PROBE_MODE_ADC, .adc_unit = ADC_UNIT_1, \
-          .adc_channel = ADC1_CHANNEL_0, .attenuation = ADC_ATTEN_DB_11, \
-          .bit_width = ADC_WIDTH_BIT_12, .gpio_num = GPIO_NUM_NC }, \
-        { .channel_num = 1, .mode = PROBE_MODE_ADC, .adc_unit = ADC_UNIT_1, \
-          .adc_channel = ADC1_CHANNEL_1, .attenuation = ADC_ATTEN_DB_11, \
-          .bit_width = ADC_WIDTH_BIT_12, .gpio_num = GPIO_NUM_NC }, \
+        { .channel_num = 0, .mode = PROBE_MODE_ADC, .adc_unit = 1, \
+          .adc_channel = 0, .attenuation = ADC_ATTEN_DB_12, \
+          .bit_width = ADC_BITWIDTH_12, .gpio_num = GPIO_NUM_NC }, \
+        { .channel_num = 1, .mode = PROBE_MODE_ADC, .adc_unit = 1, \
+          .adc_channel = 1, .attenuation = ADC_ATTEN_DB_12, \
+          .bit_width = ADC_BITWIDTH_12, .gpio_num = GPIO_NUM_NC }, \
         { .channel_num = 2, .mode = PROBE_MODE_GPIO_INPUT, .gpio_num = GPIO_NUM_1, \
           .pull_up_en = false, .pull_down_en = false }, \
         { .channel_num = 3, .mode = PROBE_MODE_GPIO_INPUT, .gpio_num = GPIO_NUM_2, \

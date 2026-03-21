@@ -108,12 +108,12 @@ esp_err_t spi_dma_send(spi_dma_device_t *handle, const uint8_t *tx_data, size_t 
         return ESP_ERR_INVALID_ARG;
     }
 
+    // ESP-IDF v6.0: txlength 字段已移除，使用 length 即可
     spi_transaction_t trans = {
         .flags = 0,
         .cmd = 0,
         .addr = 0,
         .length = tx_len * 8,
-        .txlength = tx_len * 8,
         .tx_buffer = tx_data,
         .rx_buffer = NULL,
     };
@@ -138,12 +138,12 @@ esp_err_t spi_dma_receive(spi_dma_device_t *handle, uint8_t *rx_data, size_t rx_
         return ESP_ERR_INVALID_ARG;
     }
 
+    // ESP-IDF v6.0: txlength 字段已移除
     spi_transaction_t trans = {
         .flags = 0,
         .cmd = 0,
         .addr = 0,
         .length = rx_len * 8,
-        .txlength = 0,
         .tx_buffer = NULL,
         .rx_buffer = rx_data,
     };
@@ -171,12 +171,12 @@ esp_err_t spi_dma_transfer(spi_dma_device_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
+    // ESP-IDF v6.0: txlength 字段已移除
     spi_transaction_t trans = {
         .flags = 0,
         .cmd = 0,
         .addr = 0,
         .length = len * 8,
-        .txlength = len * 8,
         .tx_buffer = tx_data,
         .rx_buffer = rx_data,
     };
@@ -205,9 +205,9 @@ esp_err_t spi_dma_send_async(spi_dma_device_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
+    // ESP-IDF v6.0: txlength 字段已移除
     memset(trans, 0, sizeof(spi_transaction_t));
     trans->length = tx_len * 8;
-    trans->txlength = tx_len * 8;
     trans->tx_buffer = tx_data;
     trans->user = user_data;
 
