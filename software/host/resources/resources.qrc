@@ -1,0 +1,16 @@
+<RC>
+  <qresource prefix="/">
+    <file>icons/app.png</file>
+    <file>icons/connect.png</file>
+    <file>icons/disconnect.png</file>
+    <file>icons/start.png</file>
+    <file>icons/stop.png</file>
+    <file>icons/settings.png</file>
+    <file>icons/device.png</file>
+    <file>icons/device_online.png</file>
+    <file>icons/device_offline.png</file>
+    <file>icons/alarm.png</file>
+    <file>styles/dark.qss</file>
+    <file>styles/light.qss</file>
+  </qresource>
+</RC>
