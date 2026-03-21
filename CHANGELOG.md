@@ -1,0 +1,54 @@
+# 变更日志 (Changelog)
+
+本项目遵循 [语义化版本 (Semantic Versioning)](https://semver.org/lang/zh-CN/)。
+
+## [未发布]
+
+### 新增
+- 初始项目结构
+- ESP32 固件基础框架
+- WiFi 连接管理
+- MQTT5 远端通道
+- 基础文档体系
+
+### 改进
+- 重构项目目录结构
+- 完善 GitHub 工作流
+
+### 修复
+- (暂无)
+
+---
+
+## [0.1.0] - 2026-03-21
+
+### 新增
+- ✨ 初始版本发布
+- 📡 MQTT over WiFi 远端通道
+- 📶 WiFi 连接管理
+- 📝 基础文档 (快速开始、贡献指南)
+- 🔧 GitHub Actions CI/CD
+- 📋 Issue 和 PR 模板
+
+### 技术栈
+- ESP-IDF v5.3+
+- ESP32 / ESP32-S3 / ESP32-C3 / ESP32-C6 支持
+- MQTT5 协议
+- Apache-2.0 许可证
+
+---
+
+## 图例
+
+- ✨ 新增功能
+- 🐛 Bug 修复
+- 📝 文档更新
+- 🔧 配置变更
+- ⚡ 性能优化
+- 🎨 代码重构
+- 🧪 测试添加
+- 🔒 安全修复
+
+---
+
+**格式参考**: [Keep a Changelog](https://keepachangelog.com/zh-CN/)

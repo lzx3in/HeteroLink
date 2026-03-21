@@ -1,0 +1,348 @@
+# HeteroLink 固件架构
+
+ESP32 固件系统设计文档。
+
+---
+
+## 🏗️ 系统架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    应用层 (Application)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
+│  │ WiFi 管理     │  │ MQTT 客户端   │  │ 业务逻辑        │   │
+│  │              │  │              │  │ 数据采集/控制    │   │
+│  └──────────────┘  └──────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   协议层 (Protocol)                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
+│  │ UART 协议栈  │  │ SPI+DMA      │  │ GPIO/ADC 探测    │   │
+│  │ 近端通信      │  │ 板间通信      │  │ 双模点测        │   │
+│  └──────────────┘  └──────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   驱动层 (Driver)                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
+│  │ ESP-IDF HAL  │  │ 自定义驱动    │  │ 外设驱动        │   │
+│  │              │  │              │  │                  │   │
+│  └──────────────┘  └──────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 组件结构
+
+```
+firmware/esp32/subboard/
+├── main/                      # 主应用
+│   ├── app_main.c            # 程序入口
+│   ├── CMakeLists.txt        # 构建配置
+│   ├── idf_component.yml     # 依赖管理
+│   └── Kconfig.projbuild     # 菜单配置
+│
+├── components/                # 自定义组件
+│   ├── heterolink_core/      # 核心库
+│   │   ├── include/
+│   │   │   └── heterolink.h
+│   │   ├── src/
+│   │   │   ├── hl_init.c
+│   │   │   ├── hl_config.c
+│   │   │   └── hl_utils.c
+│   │   └── CMakeLists.txt
+│   │
+│   ├── mqtt_client/          # MQTT 客户端
+│   │   ├── include/
+│   │   │   └── mqtt_client.h
+│   │   ├── src/
+│   │   │   ├── mqtt_init.c
+│   │   │   ├── mqtt_publish.c
+│   │   │   └── mqtt_subscribe.c
+│   │   └── CMakeLists.txt
+│   │
+│   ├── uart_protocol/        # UART 协议栈
+│   │   ├── include/
+│   │   │   └── uart_protocol.h
+│   │   ├── src/
+│   │   │   ├── uart_init.c
+│   │   │   ├── uart_frame.c
+│   │   │   └── uart_handler.c
+│   │   └── CMakeLists.txt
+│   │
+│   ├── spi_dma/              # SPI+DMA 驱动
+│   │   ├── include/
+│   │   │   └── spi_dma.h
+│   │   ├── src/
+│   │   │   ├── spi_init.c
+│   │   │   ├── spi_transfer.c
+│   │   │   └── dma_config.c
+│   │   └── CMakeLists.txt
+│   │
+│   └── adc_gpio_probe/       # ADC/GPIO 探测
+│       ├── include/
+│       │   └── adc_gpio_probe.h
+│       ├── src/
+│       │   ├── probe_init.c
+│       │   ├── adc_capture.c
+│       │   └── gpio_detect.c
+│       └── CMakeLists.txt
+│
+└── tests/                     # 测试代码
+    ├── test_mqtt.c
+    ├── test_uart.c
+    └── test_spi.c
+```
+
+---
+
+## 🔄 数据流
+
+### 远端通道 (MQTT over WiFi)
+
+```
+传感器数据
+    ↓
+[ADC/GPIO 采集]
+    ↓
+[数据封装]
+    ↓
+[MQTT Publish]
+    ↓
+WiFi → MQTT Broker → 上位机
+```
+
+### 近端通道 (UART 二进制)
+
+```
+目标设备
+    ↓
+[UART 接收]
+    ↓
+[帧解析]
+    ↓
+[数据处理]
+    ↓
+[转发/响应]
+```
+
+### 板间通道 (SPI+DMA)
+
+```
+目标主板
+    ↓
+[SPI 接口]
+    ↓
+[DMA 传输]
+    ↓
+[共享内存]
+    ↓
+[高速数据交换]
+```
+
+---
+
+## 📡 通信协议
+
+### MQTT Topic 规范
+
+```
+# 设备状态
+heterolink/subboard/{device_id}/status
+  - Payload: "online" | "offline"
+  - QoS: 1
+  - Retain: true
+
+# 命令下发
+heterolink/subboard/{device_id}/command
+  - Payload: JSON {"cmd": "...", "params": {...}}
+  - QoS: 1
+  - Retain: false
+
+# 数据上报
+heterolink/subboard/{device_id}/data/{channel}
+  - Payload: JSON/Binary
+  - QoS: 0/1
+  - Retain: false
+
+# 告警推送
+heterolink/subboard/{device_id}/alert
+  - Payload: JSON {"type": "...", "message": "..."}
+  - QoS: 1
+  - Retain: false
+```
+
+### UART 帧格式
+
+```
+┌────────┬────────┬────────┬──────────┬────────┬──────────┐
+│ Preamble│ Type   │ Length │ Payload  │ CRC16  │ Postamble│
+│ 0xAA   │ 1 byte │ 2 bytes│ N bytes  │ 2 bytes│ 0x55     │
+└────────┴────────┴────────┴──────────┴────────┴──────────┘
+```
+
+---
+
+## ⚙️ 配置选项
+
+### 通过 menuconfig 配置
+
+```
+HeteroLink Configuration →
+    WiFi Configuration →
+        WiFi SSID
+        WiFi Password
+        WiFi Auto Reconnect
+    MQTT Configuration →
+        MQTT Broker URI
+        MQTT Broker Port
+        MQTT Client ID
+        MQTT Username (optional)
+        MQTT Password (optional)
+    Device Configuration →
+        Device ID
+        Data Upload Interval (ms)
+        Enable UART Protocol
+        Enable SPI DMA
+    Debug Configuration →
+        Log Level
+        Enable Debug Output
+```
+
+### sdkconfig.defaults 示例
+
+```ini
+# WiFi 配置
+CONFIG_HETERO_WIFI_SSID="MyWiFi"
+CONFIG_HETERO_WIFI_PASSWORD="password123"
+
+# MQTT 配置
+CONFIG_HETERO_MQTT_BROKER_URI="mqtt://broker.emqx.io"
+CONFIG_HETERO_MQTT_BROKER_PORT=1883
+
+# 设备配置
+CONFIG_HETERO_DEVICE_ID="subboard_001"
+CONFIG_HETERO_DATA_UPLOAD_INTERVAL=1000
+
+# 调试配置
+CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
+```
+
+---
+
+## 🧪 测试策略
+
+### 单元测试
+
+```c
+// tests/test_mqtt.c
+#include "unity.h"
+#include "mqtt_client.h"
+
+void setUp(void) {}
+void tearDown(void) {}
+
+void test_mqtt_init(void) {
+    mqtt_config_t config = {
+        .uri = "mqtt://test.broker",
+        .port = 1883
+    };
+    
+    esp_err_t ret = mqtt_init(&config);
+    TEST_ASSERT_EQUAL(ESP_OK, ret);
+}
+
+void test_mqtt_publish(void) {
+    // ...
+}
+```
+
+### 集成测试
+
+```bash
+# 运行所有测试
+idf.py test
+
+# 运行特定测试
+idf.py test --test-filter mqtt
+```
+
+---
+
+## 📊 内存布局
+
+```
+┌─────────────────┐ 0x40000000
+│   DRAM (Data)   │  ~160KB
+├─────────────────┤
+│   IRAM (Code)   │  ~160KB
+├─────────────────┤
+│   Flash (App)   │  ~1MB
+├─────────────────┤
+│   Flash (OTA)   │  ~1MB
+├─────────────────┤
+│   Flash (NVS)   │  ~20KB
+├─────────────────┤
+│   Flash (PHY)   │  ~4KB
+└─────────────────┘
+```
+
+---
+
+## 🔒 安全特性
+
+### 当前支持
+
+- ✅ WPA2/WPA3 WiFi 加密
+- ✅ MQTT 认证 (用户名/密码)
+- ✅ 安全启动 (可选)
+
+### 计划中
+
+- 🟡 MQTT over TLS (SSL/TLS)
+- 🟡 Flash 加密
+- 🟡 安全启动 v2
+- 🟡 OTA 签名验证
+
+---
+
+## 📚 开发指南
+
+### 添加新功能
+
+1. 在 `components/` 创建新组件
+2. 实现功能代码
+3. 编写单元测试
+4. 更新文档
+5. 提交 PR
+
+### 调试技巧
+
+```c
+// 使用 ESP_LOG 宏
+#include "esp_log.h"
+
+static const char *TAG = "my_module";
+
+void my_function(void) {
+    ESP_LOGI(TAG, "Info message");
+    ESP_LOGD(TAG, "Debug message: %d", value);
+    ESP_LOGW(TAG, "Warning message");
+    ESP_LOGE(TAG, "Error message");
+}
+```
+
+---
+
+## 🔗 相关文档
+
+- [MQTT 协议规范](mqtt-protocol.md)
+- [UART 协议规范](uart-protocol.md)
+- [配置指南](configuration.md)
+- [API 参考](api-reference.md)
+
+---
+
+**最后更新**: 2026-03-21

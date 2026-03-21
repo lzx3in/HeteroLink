@@ -1,0 +1,17 @@
+# HeteroLink Subboard - Default Configuration
+
+# MQTT5 Protocol
+CONFIG_MQTT_PROTOCOL_5=y
+
+# WiFi (ESP32-C6 supports WiFi 6)
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+CONFIG_EXAMPLE_CONNECT_WIFI=y
+CONFIG_ESP_WIFI_SSID=""
+CONFIG_ESP_WIFI_PASSWORD=""
+
+# Log level
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_DEFAULT_LEVEL=3
+
+# Example configuration (to be overridden in menuconfig)
+CONFIG_EXAMPLE_MQTT_BROKER_URI="mqtt://test.mosquitto.org:1883"

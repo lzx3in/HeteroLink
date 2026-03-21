@@ -1,0 +1,156 @@
+# HeteroLink 硬件文档
+
+HeteroLink 硬件设计文档和规格说明。
+
+---
+
+## 📐 系统架构
+
+HeteroLink 由以下硬件组成：
+
+### 1. 协处理器子板 (Subboard)
+
+核心处理单元，基于 ESP32 系列芯片。
+
+**功能**:
+- 高速数据采集
+- 协议转换
+- 云端通信
+- 本地处理
+
+### 2. 转接板 (Adapter Board)
+
+连接目标主板和子板。
+
+**功能**:
+- 接口适配
+- 电平转换
+- 信号调理
+- 电源管理
+
+### 3. 目标主板
+
+被调试和监控的设备。
+
+**示例**:
+- 单板计算机 (树莓派、Jetson 等)
+- 微控制器 (STM32、Arduino 等)
+- 电机驱动器
+- 传感器模块
+
+---
+
+## 🔌 通信通道
+
+| 通道 | 接口 | 协议 | 速度 | 用途 |
+|------|------|------|------|------|
+| 近端 | UART | 自定义二进制 | 921600 bps | 高频遥测 |
+| 远端 | WiFi | MQTT5 | ~1 Mbps | 云端通信 |
+| 板间 | SPI+DMA | 自定义 | 10+ MB/s | 高速传输 |
+| 点测 | GPIO/ADC | 数字/模拟 | kHz 级 | 信号探测 |
+
+---
+
+## 📦 硬件版本
+
+### Subboard v1.0 (当前版本)
+
+**特性**:
+- ESP32-C6 (WiFi 6)
+- USB-C 接口
+- 外部天线接口
+- 调试接口
+- 扩展 GPIO
+
+**规格**:
+- 工作电压：3.3V / 5V
+- 工作电流：~200mA (峰值 500mA)
+- 工作温度：-20°C ~ 70°C
+- 尺寸：50mm × 30mm
+
+### Adapter v1.0 (计划中)
+
+**特性**:
+- 多接口支持 (UART, SPI, I2C, GPIO)
+- 电平转换 (1.8V / 3.3V / 5V)
+- 隔离保护
+- 测试点
+
+---
+
+## 🔧 子板文档
+
+### 设计文件
+
+- [子板概览](subboard/overview.md) - 功能和规格
+- [原理图说明](subboard/schematics.md) - 电路设计
+- [组装指南](subboard/assembly.md) - 硬件组装
+
+### 生产文件
+
+- Gerber 文件：`hardware/subboard/gerbers/`
+- BOM 表：`hardware/subboard/bom/`
+- 3D 模型：`hardware/subboard/3d-models/`
+
+---
+
+## 🎯 芯片兼容性
+
+HeteroLink 支持以下 ESP32 系列芯片：
+
+| 芯片 | 状态 | 特性 | 推荐应用 |
+|------|------|------|----------|
+| ESP32-C6 | ✅ 推荐 | WiFi 6, BLE 5, RISC-V | 通用场景 |
+| ESP32-S3 | ✅ 支持 | WiFi 4, BLE 5, AI 加速 | 图像处理 |
+| ESP32-C3 | ✅ 支持 | WiFi 4, BLE 5, RISC-V | 低成本场景 |
+| ESP32 | ✅ 支持 | WiFi 4, 双核 | 传统项目 |
+
+详细兼容性信息：[芯片兼容性文档](compatibility.md)
+
+---
+
+## 🛒 订购指南
+
+### 购买渠道
+
+*(待完善 - 项目开源，可自行生产)*
+
+### DIY 生产
+
+1. 下载 Gerber 文件
+2. 提交到 PCB 制造商
+3. 采购元器件 (参考 BOM 表)
+4. 焊接组装
+
+推荐制造商：
+- JLCPCB
+- PCBWay
+- Seeed Studio
+
+---
+
+## 📞 硬件支持
+
+### 原理图问题
+
+[创建 Issue](https://github.com/HeteroLink/HeteroLink/issues) 并标记 `hardware`
+
+### 定制需求
+
+在 [Discussions](https://github.com/HeteroLink/HeteroLink/discussions) 提出需求
+
+### 生产咨询
+
+联系：hardware@heterolink.dev (待设置)
+
+---
+
+## 📚 相关文档
+
+- [固件架构](../firmware/architecture.md) - 软件设计
+- [快速开始](../getting-started/quick-start.md) - 使用指南
+- [示例项目](../examples/README.md) - 实践练习
+
+---
+
+**最后更新**: 2026-03-21

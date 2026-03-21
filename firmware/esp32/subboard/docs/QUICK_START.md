@@ -1,0 +1,126 @@
+# HeteroLink Subboard - 快速开始指南
+
+## 1. 环境准备
+
+```bash
+# 确保 ESP-IDF 已安装并激活
+. $HOME/esp/esp-idf/export.sh
+
+# 验证 IDF 版本 (需要 v5.3+)
+idf.py --version
+```
+
+## 2. 配置项目
+
+```bash
+# 进入项目目录
+cd ~/Code/HeteroLink/firmware/esp32/subboard
+
+# 设置目标芯片 (根据你的硬件选择)
+idf.py set-target esp32s3
+# 或：idf.py set-target esp32
+# 或：idf.py set-target esp32c3
+```
+
+### 配置 WiFi 和 MQTT
+
+```bash
+idf.py menuconfig
+```
+
+在菜单中配置：
+
+```
+HeteroLink Configuration  --->
+    WiFi SSID: <你的 WiFi 名称>
+    WiFi Password: <你的 WiFi 密码>
+    MQTT Broker URI: <MQTT 服务器地址>
+```
+
+**MQTT Broker 示例**:
+- 公共测试：`mqtt://test.mosquitto.org:1883`
+- 本地 Broker: `mqtt://192.168.1.100:1883`
+- EMQX 公共：`mqtt://broker.emqx.io:1883`
+
+## 3. 编译烧录
+
+```bash
+# 编译
+idf.py build
+
+# 烧录 (替换为实际端口)
+idf.py -p /dev/ttyUSB0 flash
+
+# 监视串口输出
+idf.py -p /dev/ttyUSB0 monitor
+```
+
+**退出监视器**: 按 `Ctrl+]`
+
+## 4. 测试 MQTT 通信
+
+### 订阅设备状态
+
+```bash
+# 使用 mosquitto 客户端订阅
+mosquitto_sub -h test.mosquitto.org -t "heterolink/subboard/#" -v
+```
+
+### 发送控制命令
+
+```bash
+# 发布命令到设备
+mosquitto_pub -h test.mosquitto.org -t "heterolink/subboard/device1/command" \
+  -m '{"cmd": "ping"}'
+```
+
+## 5. 预期输出
+
+```
+I (0) heterolink: ========================================
+I (0) heterolink:   HeteroLink ESP32 Subboard
+I (0) heterolink:   Version: 0.1.0
+I (0) heterolink:   Channel: Remote (MQTT over WiFi)
+I (0) heterolink: ========================================
+I (0) heterolink: [APP] Free memory: 285432 bytes
+I (0) heterolink: [APP] IDF version: v5.3.2
+I (1234) heterolink: Connecting to WiFi...
+I (2345) example_connect: Connected to example_connect: sta
+I (2345) heterolink: WiFi connected!
+I (2350) heterolink: MQTT client started
+I (3456) heterolink: MQTT_EVENT_CONNECTED
+I (3456) heterolink: sent subscribe successful, msg_id=12345
+I (3456) heterolink: sent publish status=online, msg_id=12346
+```
+
+## 6. MQTT Topic 规范
+
+| Topic | 方向 | 说明 |
+|-------|------|------|
+| `heterolink/subboard/status` | 设备→云 | 设备在线/离线状态 |
+| `heterolink/subboard/+/command` | 云→设备 | 控制命令 |
+| `heterolink/subboard/+/telemetry` | 设备→云 | 遥测数据 (待实现) |
+| `heterolink/subboard/+/adc` | 设备→云 | ADC 采集数据 (待实现) |
+| `heterolink/subboard/+/gpio` | 设备→云 | GPIO 状态 (待实现) |
+
+## 7. 故障排查
+
+### WiFi 连接失败
+- 检查 SSID/密码是否正确
+- 确认 2.4GHz WiFi 可用 (ESP32 不支持 5GHz)
+- 检查信号强度
+
+### MQTT 连接失败
+- 确认 Broker 地址和端口正确
+- 检查防火墙规则
+- 尝试使用 TLS: `mqtts://...`
+
+### 内存不足
+- 减少日志级别：`menuconfig → Component config → Log output`
+- 检查堆内存：`esp_get_free_heap_size()`
+
+## 下一步
+
+- [ ] 实现近端 UART 通道
+- [ ] 实现 SPI+DMA 高速传输
+- [ ] 实现 GPIO/ADC 点测功能
