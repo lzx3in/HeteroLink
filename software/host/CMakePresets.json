@@ -73,13 +73,13 @@
       }
     },
     {
-      "name": "windows-msvc-2022",
-      "displayName": "Windows MSVC 2022 x64",
-      "description": "Visual Studio 2022 (v143) 64 位",
+      "name": "windows-msvc-2026",
+      "displayName": "Windows MSVC 2026 x64",
+      "description": "Visual Studio 2026 (v144) 64 位",
       "inherits": "base-windows",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "architecture": "x64",
-      "toolset": "v143",
+      "toolset": "v144",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_FLAGS": "/W4 /permissive- /Zc:__cplusplus",
@@ -88,10 +88,10 @@
       }
     },
     {
-      "name": "windows-msvc-2022-debug",
-      "displayName": "Windows MSVC 2022 x64 Debug",
-      "description": "Visual Studio 2022 (v143) 64 位 Debug 版本",
-      "inherits": "windows-msvc-2022",
+      "name": "windows-msvc-2026-debug",
+      "displayName": "Windows MSVC 2026 x64 Debug",
+      "description": "Visual Studio 2026 (v144) 64 位 Debug 版本",
+      "inherits": "windows-msvc-2026",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Od /RTC1 /MDd"
@@ -170,15 +170,15 @@
       "configuration": "Release"
     },
     {
-      "name": "windows-msvc-2022-build",
-      "displayName": "Build MSVC 2022",
-      "configurePreset": "windows-msvc-2022",
+      "name": "windows-msvc-2026-build",
+      "displayName": "Build MSVC 2026",
+      "configurePreset": "windows-msvc-2026",
       "configuration": "Release"
     },
     {
-      "name": "windows-msvc-2022-debug-build",
-      "displayName": "Build MSVC 2022 Debug",
-      "configurePreset": "windows-msvc-2022-debug",
+      "name": "windows-msvc-2026-debug-build",
+      "displayName": "Build MSVC 2026 Debug",
+      "configurePreset": "windows-msvc-2026-debug",
       "configuration": "Debug"
     },
     {
@@ -210,9 +210,9 @@
       }
     },
     {
-      "name": "windows-msvc-2022-test",
-      "displayName": "Test MSVC 2022",
-      "configurePreset": "windows-msvc-2022",
+      "name": "windows-msvc-2026-test",
+      "displayName": "Test MSVC 2026",
+      "configurePreset": "windows-msvc-2026",
       "configuration": "Release",
       "output": {
         "outputOnFailure": true
@@ -264,21 +264,21 @@
       ]
     },
     {
-      "name": "windows-msvc-2022-workflow",
-      "displayName": "Windows MSVC 2022 Workflow",
-      "description": "完整的 Windows MSVC 2022 构建工作流（配置→构建→测试）",
+      "name": "windows-msvc-2026-workflow",
+      "displayName": "Windows MSVC 2026 Workflow",
+      "description": "完整的 Windows MSVC 2026 构建工作流（配置→构建→测试）",
       "steps": [
         {
           "type": "configure",
-          "name": "windows-msvc-2022"
+          "name": "windows-msvc-2026"
         },
         {
           "type": "build",
-          "name": "windows-msvc-2022-build"
+          "name": "windows-msvc-2026-build"
         },
         {
           "type": "test",
-          "name": "windows-msvc-2022-test"
+          "name": "windows-msvc-2026-test"
         }
       ]
     },
