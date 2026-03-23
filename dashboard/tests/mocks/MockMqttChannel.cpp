@@ -140,8 +140,10 @@ void MockMqttChannel::simulateMessage(const QString& topic, const QByteArray& pa
         return;
     }
     
-    emit messageReceived(topic, payload);
-    processSubscription(topic, payload);
+    // 只有匹配的订阅才发射信号
+    if (processSubscription(topic, payload)) {
+        emit messageReceived(topic, payload);
+    }
 }
 
 void MockMqttChannel::simulateDeviceStatus(const QString& deviceId, bool online)
@@ -195,9 +197,11 @@ void MockMqttChannel::clearPublishHistory()
     publishedMessages_.clear();
 }
 
-void MockMqttChannel::processSubscription(const QString& topic, const QByteArray& payload)
+bool MockMqttChannel::processSubscription(const QString& topic, const QByteArray& payload)
 {
     // 简单的 topic 匹配（支持 + 通配符）
+    // 返回是否匹配任何订阅
+    bool matched = false;
     for (const auto& sub : subscriptions_) {
         if (!sub.active) continue;
         
@@ -209,16 +213,10 @@ void MockMqttChannel::processSubscription(const QString& topic, const QByteArray
         
         QRegularExpression regex(pattern);
         if (regex.match(topic).hasMatch()) {
-            // 模拟延迟后发射信号
-            if (simulatedDelayMs_ > 0) {
-                QTimer::singleShot(simulatedDelayMs_, this, [this, topic, payload]() {
-                    emit messageReceived(topic, payload);
-                });
-            } else {
-                emit messageReceived(topic, payload);
-            }
+            matched = true;
         }
     }
+    return matched;
 }
 
 } // namespace HeteroLink

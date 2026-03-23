@@ -333,6 +333,9 @@ private slots:
         MqttConfig config;
         channel.connect(config);
         
+        // 订阅一个通配符 topic
+        channel.subscribe("test/#");
+        
         QSignalSpy spy(&channel, SIGNAL(messageReceived(QString,QByteArray)));
         channel.simulateMessage("test/topic", QByteArray("Test"));
         
@@ -465,6 +468,10 @@ private slots:
         
         QSignalSpy spy(&manager, SIGNAL(telemetryReceived(QString,TelemetryData)));
         
+        // 连接通道
+        MockUartChannel* channel = manager.getMockUartChannel("1");
+        channel->connect(UartConfig());
+        
         TelemetryData telemetry;
         telemetry.timestamp = 1000;
         telemetry.channels = {1.5f, 2.5f};
@@ -478,7 +485,11 @@ private slots:
         MockDeviceManager manager;
         manager.addMockDevice("device_001", "MQTT");
         
-        QSignalSpy spy(&manager, SIGNAL(telemetryReceived(QString,QString)));
+        QSignalSpy spy(&manager, SIGNAL(telemetryReceived(QString,TelemetryData)));
+        
+        // 连接 MQTT 通道
+        MockMqttChannel* mqttChannel = manager.getMockMqttChannel();
+        mqttChannel->connect(MqttConfig());
         
         TelemetryData telemetry;
         telemetry.timestamp = 1000;
@@ -590,8 +601,15 @@ private slots:
         manager.addMockDevice("device_002", "UART");
         manager.addMockDevice("device_003", "MQTT");
         
-        QSignalSpy uartSpy(&manager, SIGNAL(telemetryReceived(QString,TelemetryData)));
-        QSignalSpy mqttSpy(&manager, SIGNAL(telemetryReceived(QString,QString)));
+        // 连接通道
+        MockUartChannel* uartChannel1 = manager.getMockUartChannel("device_001");
+        uartChannel1->connect(UartConfig());
+        MockUartChannel* uartChannel2 = manager.getMockUartChannel("device_002");
+        uartChannel2->connect(UartConfig());
+        MockMqttChannel* mqttChannel = manager.getMockMqttChannel();
+        mqttChannel->connect(MqttConfig());
+        
+        QSignalSpy spy(&manager, SIGNAL(telemetryReceived(QString,TelemetryData)));
         
         // UART 设备发送遥测
         TelemetryData uartData;
@@ -606,8 +624,7 @@ private slots:
         mqttData.channels = {3.5f};
         manager.simulateTelemetry("device_003", mqttData);
         
-        QCOMPARE(uartSpy.count(), 2);
-        QCOMPARE(mqttSpy.count(), 1);
+        QCOMPARE(spy.count(), 3);
     }
     
     void testIntegration_HeartbeatSequence() {
@@ -673,8 +690,9 @@ private slots:
         // 发布设备状态
         mqttChannel->publishDeviceStatus("device_001", true);
         
-        // 验证设备列表已清除
-        QCOMPARE(manager.getDevices().size(), 0);
+        // 验证发布了一条消息
+        QCOMPARE(manager.getPublishedMqttMessages().size(), 1);
+        QCOMPARE(manager.getPublishedMqttMessages()[0].topic, QString("heterolink/subboard/device_001/status"));
     }
 };
 

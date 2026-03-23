@@ -210,7 +210,7 @@ private:
     int simulatedDelayMs_ = 0;
     bool shouldFail_ = false;
     
-    void processSubscription(const QString& topic, const QByteArray& payload);
+    bool processSubscription(const QString& topic, const QByteArray& payload);
 };
 
 } // namespace HeteroLink

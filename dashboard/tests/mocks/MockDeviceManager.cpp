@@ -104,12 +104,9 @@ MockUartChannel* MockDeviceManager::getMockUartChannel(const QString& deviceId)
         connect(mockChannel, &MockUartChannel::connectionChanged,
                 this, [this, deviceId](bool connected) {
             // 更新设备连接状态
-            if (getDevices().contains(deviceId)) {
-                DeviceInfo info = getDevice(deviceId);
-                info.connected = connected;
-                info.lastSeen = connected ? QDateTime::currentMSecsSinceEpoch() : 0;
-                emit deviceStatusChanged(deviceId, connected, info.online);
-            }
+            // 注意：getDevice() 返回的是值拷贝，无法直接修改
+            // online 状态与 connected 同步
+            emit deviceStatusChanged(deviceId, connected, connected);
         });
         
         connect(mockChannel, &MockUartChannel::errorOccurred,
@@ -182,10 +179,7 @@ void MockDeviceManager::simulateDeviceDisconnect(const QString& deviceId)
     if (mockUartChannels_.contains(deviceId)) {
         mockUartChannels_[deviceId]->simulateDisconnect();
     }
-    // 直接发射状态变化信号
-    if (getDevices().contains(deviceId)) {
-        emit deviceStatusChanged(deviceId, false, false);
-    }
+    // 注意：connectionChanged 信号会自动转发到 deviceStatusChanged
 }
 
 void MockDeviceManager::simulateDeviceConnect(const QString& deviceId)
@@ -193,10 +187,7 @@ void MockDeviceManager::simulateDeviceConnect(const QString& deviceId)
     if (mockUartChannels_.contains(deviceId)) {
         mockUartChannels_[deviceId]->simulateConnect();
     }
-    // 直接发射状态变化信号
-    if (getDevices().contains(deviceId)) {
-        emit deviceStatusChanged(deviceId, true, true);
-    }
+    // 注意：connectionChanged 信号会自动转发到 deviceStatusChanged
 }
 
 QVector<Frame> MockDeviceManager::getSentHeartbeats(const QString& deviceId) const
