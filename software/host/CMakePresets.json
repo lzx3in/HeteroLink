@@ -11,7 +11,7 @@
       "name": "base",
       "hidden": true,
       "displayName": "Base Config",
-      "description": "基础配置",
+      "description": "Base configuration with vcpkg integration",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/install/${presetName}",
       "cacheVariables": {
@@ -23,7 +23,7 @@
       "name": "base-windows",
       "hidden": true,
       "displayName": "Base Windows Config",
-      "description": "Windows 基础配置",
+      "description": "Base configuration for Windows platforms",
       "inherits": "base",
       "binaryDir": "${sourceDir}\\build\\${presetName}",
       "installDir": "${sourceDir}\\install\\${presetName}",
@@ -34,9 +34,10 @@
       }
     },
     {
-      "name": "linux-system",
-      "displayName": "Linux System Compiler",
-      "description": "使用 Linux 系统编译器（GCC/Clang），避免 ESP-IDF 工具链干扰",
+      "name": "lnx-gcc",
+      "hidden": true,
+      "displayName": "Linux GCC",
+      "description": "Linux system compiler (GCC), avoids ESP-IDF toolchain conflicts",
       "inherits": "base",
       "condition": {
         "type": "equals",
@@ -44,7 +45,6 @@
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_COMPILER": "gcc",
         "CMAKE_CXX_COMPILER": "g++",
         "CMAKE_C_FLAGS": "-m64",
@@ -52,10 +52,10 @@
       }
     },
     {
-      "name": "linux-release",
-      "displayName": "Linux Release Build",
-      "description": "Linux Release 版本",
-      "inherits": "linux-system",
+      "name": "lnx-gcc-release",
+      "displayName": "Linux GCC Release",
+      "description": "Linux Release build with GCC (-O3)",
+      "inherits": "lnx-gcc",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_C_FLAGS_RELEASE": "-O3 -DNDEBUG",
@@ -63,10 +63,10 @@
       }
     },
     {
-      "name": "linux-debug",
-      "displayName": "Linux Debug Build",
-      "description": "Linux Debug 版本（带调试信息）",
-      "inherits": "linux-system",
+      "name": "lnx-gcc-debug",
+      "displayName": "Linux GCC Debug",
+      "description": "Linux Debug build with GCC (-g, -O0)",
+      "inherits": "lnx-gcc",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_FLAGS_DEBUG": "-g -O0",
@@ -74,33 +74,41 @@
       }
     },
     {
-      "name": "windows-msvc-2026",
-      "displayName": "Windows MSVC 2026 x64",
-      "description": "Visual Studio 2026 64 位版本",
+      "name": "win-msvc2026",
+      "hidden": true,
+      "displayName": "Windows MSVC 2026",
+      "description": "Visual Studio 2026 (v144) 64-bit",
       "inherits": "base-windows",
       "generator": "Visual Studio 18 2026",
       "architecture": "x64",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_FLAGS": "/W4 /permissive- /Zc:__cplusplus",
-        "CMAKE_CXX_FLAGS_RELEASE": "/O2 /DNDEBUG",
-        "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Od /RTC1"
+        "CMAKE_CXX_FLAGS": "/W4 /permissive- /Zc:__cplusplus"
       }
     },
     {
-      "name": "windows-msvc-2026-debug",
-      "displayName": "Windows MSVC 2026 x64 Debug",
-      "description": "Visual Studio 2026 64 位 Debug 版本",
-      "inherits": "windows-msvc-2026",
+      "name": "win-msvc2026-release",
+      "displayName": "Windows MSVC 2026 Release",
+      "description": "Visual Studio 2026 Release build (/O2)",
+      "inherits": "win-msvc2026",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "/O2 /DNDEBUG"
+      }
+    },
+    {
+      "name": "win-msvc2026-debug",
+      "displayName": "Windows MSVC 2026 Debug",
+      "description": "Visual Studio 2026 Debug build (/Zi, /Od, /RTC1)",
+      "inherits": "win-msvc2026",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Od /RTC1 /MDd"
       }
     },
     {
-      "name": "windows-msvc-2019",
-      "displayName": "Windows MSVC 2019 x64",
-      "description": "Visual Studio 2019 (v142) 64 位",
+      "name": "win-msvc2019-release",
+      "displayName": "Windows MSVC 2019 Release",
+      "description": "Visual Studio 2019 (v142) 64-bit Release",
       "inherits": "base-windows",
       "generator": "Visual Studio 16 2019",
       "architecture": "x64",
@@ -112,35 +120,44 @@
       }
     },
     {
-      "name": "windows-mingw",
+      "name": "win-gcc",
+      "hidden": true,
       "displayName": "Windows MinGW GCC",
-      "description": "MinGW GCC 编译器（需要安装 MSYS2 或 MinGW-w64）",
+      "description": "MinGW-w64 GCC (requires MSYS2 or MinGW-w64)",
       "inherits": "base-windows",
       "generator": "MinGW Makefiles",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_C_COMPILER": "gcc",
         "CMAKE_CXX_COMPILER": "g++",
         "CMAKE_C_FLAGS": "-m64",
-        "CMAKE_CXX_FLAGS": "-m64 -static-libgcc -static-libstdc++",
-        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
-        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0"
+        "CMAKE_CXX_FLAGS": "-m64 -static-libgcc -static-libstdc++"
       }
     },
     {
-      "name": "windows-mingw-debug",
-      "displayName": "Windows MinGW GCC Debug",
-      "description": "MinGW GCC Debug 版本",
-      "inherits": "windows-mingw",
+      "name": "win-gcc-release",
+      "displayName": "Windows MinGW Release",
+      "description": "MinGW GCC Release build (-O3)",
+      "inherits": "win-gcc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
+      }
+    },
+    {
+      "name": "win-gcc-debug",
+      "displayName": "Windows MinGW Debug",
+      "description": "MinGW GCC Debug build (-g, -O0)",
+      "inherits": "win-gcc",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS_DEBUG": "-g -O0"
       }
     },
     {
-      "name": "macos-clang",
+      "name": "mac-clang",
+      "hidden": true,
       "displayName": "macOS Clang",
-      "description": "macOS Clang 编译器",
+      "description": "macOS system compiler (Clang)",
       "inherits": "base",
       "condition": {
         "type": "equals",
@@ -150,78 +167,86 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/install/${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "mac-clang-debug",
+      "displayName": "macOS Clang Debug",
+      "description": "macOS Debug build with Clang",
+      "inherits": "mac-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "linux-debug-build",
-      "displayName": "Build Debug",
-      "configurePreset": "linux-debug",
+      "name": "build-lnx-gcc-debug",
+      "displayName": "Build Linux Debug",
+      "configurePreset": "lnx-gcc-debug",
       "configuration": "Debug"
     },
     {
-      "name": "linux-release-build",
-      "displayName": "Build Release",
-      "configurePreset": "linux-release",
+      "name": "build-lnx-gcc-release",
+      "displayName": "Build Linux Release",
+      "configurePreset": "lnx-gcc-release",
       "configuration": "Release"
     },
     {
-      "name": "windows-msvc-2026-build",
-      "displayName": "Build MSVC 2026",
-      "configurePreset": "windows-msvc-2026",
+      "name": "build-win-msvc2026-release",
+      "displayName": "Build Windows MSVC 2026 Release",
+      "configurePreset": "win-msvc2026-release",
       "configuration": "Release"
     },
     {
-      "name": "windows-msvc-2026-debug-build",
-      "displayName": "Build MSVC 2026 Debug",
-      "configurePreset": "windows-msvc-2026-debug",
+      "name": "build-win-msvc2026-debug",
+      "displayName": "Build Windows MSVC 2026 Debug",
+      "configurePreset": "win-msvc2026-debug",
       "configuration": "Debug"
     },
     {
-      "name": "windows-msvc-2019-build",
-      "displayName": "Build MSVC 2019",
-      "configurePreset": "windows-msvc-2019",
+      "name": "build-win-msvc2019-release",
+      "displayName": "Build Windows MSVC 2019 Release",
+      "configurePreset": "win-msvc2019-release",
       "configuration": "Release"
     },
     {
-      "name": "windows-mingw-build",
-      "displayName": "Build MinGW",
-      "configurePreset": "windows-mingw",
+      "name": "build-win-gcc-release",
+      "displayName": "Build Windows MinGW Release",
+      "configurePreset": "win-gcc-release",
       "configuration": "Release"
     },
     {
-      "name": "windows-mingw-debug-build",
-      "displayName": "Build MinGW Debug",
-      "configurePreset": "windows-mingw-debug",
+      "name": "build-win-gcc-debug",
+      "displayName": "Build Windows MinGW Debug",
+      "configurePreset": "win-gcc-debug",
       "configuration": "Debug"
     }
   ],
   "testPresets": [
     {
-      "name": "linux-debug-test",
-      "displayName": "Test Debug",
-      "configurePreset": "linux-debug",
+      "name": "test-lnx-gcc-debug",
+      "displayName": "Test Linux Debug",
+      "configurePreset": "lnx-gcc-debug",
       "output": {
         "outputOnFailure": true
       }
     },
     {
-      "name": "windows-msvc-2026-test",
-      "displayName": "Test MSVC 2026",
-      "configurePreset": "windows-msvc-2026",
+      "name": "test-win-msvc2026-release",
+      "displayName": "Test Windows MSVC 2026 Release",
+      "configurePreset": "win-msvc2026-release",
       "configuration": "Release",
       "output": {
         "outputOnFailure": true
       }
     },
     {
-      "name": "windows-mingw-test",
-      "displayName": "Test MinGW",
-      "configurePreset": "windows-mingw",
+      "name": "test-win-gcc-release",
+      "displayName": "Test Windows MinGW Release",
+      "configurePreset": "win-gcc-release",
       "configuration": "Release",
       "output": {
         "outputOnFailure": true
@@ -230,74 +255,74 @@
   ],
   "workflowPresets": [
     {
-      "name": "linux-debug-workflow",
+      "name": "workflow-lnx-debug",
       "displayName": "Linux Debug Workflow",
-      "description": "完整的 Linux Debug 构建工作流（配置→构建→测试）",
+      "description": "Complete Linux Debug build workflow (configure → build → test)",
       "steps": [
         {
           "type": "configure",
-          "name": "linux-debug"
+          "name": "lnx-gcc-debug"
         },
         {
           "type": "build",
-          "name": "linux-debug-build"
+          "name": "build-lnx-gcc-debug"
         },
         {
           "type": "test",
-          "name": "linux-debug-test"
+          "name": "test-lnx-gcc-debug"
         }
       ]
     },
     {
-      "name": "linux-release-workflow",
+      "name": "workflow-lnx-release",
       "displayName": "Linux Release Workflow",
-      "description": "完整的 Linux Release 构建工作流（配置→构建→测试）",
+      "description": "Complete Linux Release build workflow (configure → build)",
       "steps": [
         {
           "type": "configure",
-          "name": "linux-release"
+          "name": "lnx-gcc-release"
         },
         {
           "type": "build",
-          "name": "linux-release-build"
+          "name": "build-lnx-gcc-release"
         }
       ]
     },
     {
-      "name": "windows-msvc-2026-workflow",
+      "name": "workflow-win-msvc2026",
       "displayName": "Windows MSVC 2026 Workflow",
-      "description": "完整的 Windows MSVC 2026 构建工作流（配置→构建→测试）",
+      "description": "Complete Windows MSVC 2026 build workflow (configure → build → test)",
       "steps": [
         {
           "type": "configure",
-          "name": "windows-msvc-2026"
+          "name": "win-msvc2026-release"
         },
         {
           "type": "build",
-          "name": "windows-msvc-2026-build"
+          "name": "build-win-msvc2026-release"
         },
         {
           "type": "test",
-          "name": "windows-msvc-2026-test"
+          "name": "test-win-msvc2026-release"
         }
       ]
     },
     {
-      "name": "windows-mingw-workflow",
+      "name": "workflow-win-gcc",
       "displayName": "Windows MinGW Workflow",
-      "description": "完整的 Windows MinGW 构建工作流（配置→构建→测试）",
+      "description": "Complete Windows MinGW build workflow (configure → build → test)",
       "steps": [
         {
           "type": "configure",
-          "name": "windows-mingw"
+          "name": "win-gcc-release"
         },
         {
           "type": "build",
-          "name": "windows-mingw-build"
+          "name": "build-win-gcc-release"
         },
         {
           "type": "test",
-          "name": "windows-mingw-test"
+          "name": "test-win-gcc-release"
         }
       ]
     }
