@@ -1,0 +1,249 @@
+= HeteroLink 上位机设计完成总结
+*日期*: 2026-03-21 +
+*状态*: 设计完成，待实现
+
+---
+
+== 📋 完成内容
+
+=== 1. 设计文档
+
+[cols="3*",options="header"]
+|===
+|文档 |路径 |说明
+
+|上位机设计
+|link:../../docs/dashboard/host-design.adoc[docs/dashboard/host-design.adoc]
+|完整的架构设计、技术选型、UI 设计
+
+|协议规范
+|link:../../docs/dashboard/protocol-spec.adoc[docs/dashboard/protocol-spec.adoc]
+|UART 二进制协议、MQTT Topic 规范
+|===
+
+=== 2. 项目结构
+
+....
+dashboard/
+├── CMakeLists.txt              # ✅ CMake 构建配置
+├── README.adoc                 # ✅ 项目说明
+├── src/
+│   ├── main.cpp                # ✅ 程序入口
+│   ├── app/
+│   │   ├── Application.h       # ✅ 应用主类
+│   │   └── Application.cpp     # ✅ 实现
+│   ├── core/
+│   │   ├── DeviceManager.h     # ✅ 设备管理
+│   │   ├── DataProcessor.h     # ✅ 数据处理
+│   │   └── AlarmSystem.h       # ✅ 告警系统
+│   ├── protocol/
+│   │   ├── Protocol.h          # ✅ 协议定义
+│   │   ├── Protocol.cpp        # ✅ 编解码实现
+│   │   ├── UartChannel.h       # ✅ UART 通道
+│   │   └── MqttChannel.h       # ✅ MQTT 通道
+│   ├── ui/
+│   │   ├── MainWindow.h        # ✅ 主窗口
+│   │   ├── MainWindow.ui       # ✅ UI 布局
+│   │   ├── DevicePanel.h       # ✅ 设备面板
+│   │   ├── DevicePanel.cpp     # ✅ 实现
+│   │   ├── DataWidget.h        # ✅ 数据可视化
+│   │   └── ConfigPanel.h       # ✅ 配置面板
+│   ├── storage/
+│   │   ├── ConfigManager.h     # ✅ 配置管理
+│   │   └── DataLogger.h        # ✅ 数据记录
+│   └── utils/
+│       ├── Logger.h            # ✅ 日志工具
+│       └── Logger.cpp          # ✅ 实现
+├── resources/
+│   ├── resources.qrc           # ✅ Qt 资源文件
+│   ├── icons/                  # ✅ 待添加图标
+│   └── styles/
+│       └── dark.qss            # ✅ 深色样式表
+└── tests/
+    ├── CMakeLists.txt          # ✅ 测试配置
+    ├── test_protocol.cpp       # ✅ 协议测试
+    └── test_dataprocessor.cpp  # ✅ 数据处理器测试
+....
+
+=== 3. 核心功能设计
+
+==== 通信协议层
+* *UART 通道*: 串口通信、二进制协议编解码、CRC16 校验
+* *MQTT 通道*: MQTT 5.0 连接、Topic 管理、QoS 支持
+* *协议定义*: 帧结构、命令字、遥测数据格式
+
+==== 业务逻辑层
+* *设备管理*: 多设备管理、连接状态、自动发现
+* *数据处理*: 环形缓冲区、统计分析、数据导出
+* *告警系统*: 阈值监控、告警触发、历史记录
+
+==== 用户界面
+* *主窗口*: 菜单栏、工具栏、状态栏、三分割布局
+* *设备面板*: 设备列表、串口选择、连接控制
+* *数据可视化*: 波形图 (QCustomPlot)、数据表格
+* *配置面板*: UART 配置、MQTT 配置、告警阈值
+
+==== 数据存储
+* *配置管理*: JSON 格式、嵌套配置、默认值
+* *数据记录*: CSV 导出、自动分段、文件大小限制
+
+---
+
+== 🎯 关键技术选型
+
+[cols="3*",options="header"]
+|===
+|组件 |选型 |版本
+
+|GUI 框架
+|Qt
+|6.5+
+
+|编程语言
+|C++
+|17
+
+|构建系统
+|CMake
+|3.20+
+
+|图表库
+|QCustomPlot
+|2.1+
+
+|串口通信
+|QSerialPort
+|Qt 模块
+
+|MQTT 客户端
+|QMqtt / Paho
+|-
+
+|数据库
+|SQLite
+|3.x
+
+|日志库
+|自研 (spdlog 风格)
+|-
+|===
+
+---
+
+== 📐 协议设计要点
+
+=== UART 二进制协议
+* 帧头：`0xAA55` (小端)
+* 最小帧长：8 bytes
+* 最大载荷：65535 bytes
+* 校验：CRC16/MODBUS
+* 波特率：921600 (默认)
+
+=== MQTT Topic 规范
+....
+heterolink/subboard/{device_id}/
+├── status       # 设备状态
+├── telemetry    # 遥测数据
+├── command      # 控制命令 (订阅)
+├── alarm        # 告警通知
+└── config       # 配置 (订阅)
+....
+
+---
+
+== 🎨 UI 设计特点
+
+=== 深色主题
+* 背景色：`#1e1e1e`
+* 强调色：`#0078d4` (蓝)
+* 成功色：`#4caf50` (绿)
+* 警告色：`#ff9800` (橙)
+* 错误色：`#f44336` (红)
+
+=== 布局设计
+* 三分割布局：设备面板 | 数据可视化 | 配置面板
+* 可调整分割比例
+* 支持全屏模式
+* 响应式设计
+
+---
+
+== 📊 性能指标
+
+[cols="2*",options="header"]
+|===
+|指标 |目标值
+
+|最大采样率
+|≥10 kHz
+
+|显示延迟
+|<100 ms
+
+|同时设备数
+|≤32
+
+|数据记录速度
+|≥100 MB/s
+
+|内存占用
+|<500 MB
+
+|启动时间
+|<3 s
+|===
+
+---
+
+== 🗺️ 后续开发计划
+
+=== Phase 1: 基础框架 (2 周)
+* [ ] 完善所有 .cpp 实现文件
+* [ ] 添加图标资源
+* [ ] 首次编译测试
+
+=== Phase 2: 核心功能 (3 周)
+* [ ] UART 通信联调
+* [ ] MQTT 通信联调
+* [ ] 设备管理完善
+
+=== Phase 3: 可视化 (2 周)
+* [ ] QCustomPlot 集成
+* [ ] 波形图实现
+* [ ] 数据表格实现
+
+=== Phase 4: 高级功能 (2 周)
+* [ ] 告警系统完善
+* [ ] 数据记录/回放
+* [ ] OTA 升级支持
+
+=== Phase 5: 优化发布 (1 周)
+* [ ] 性能优化
+* [ ] 打包发布
+* [ ] 文档完善
+
+*总计*: 10 周
+
+---
+
+== 🔗 相关文档
+
+* link:../../docs/dashboard/host-design.adoc[上位机设计文档]
+* link:../../docs/dashboard/protocol-spec.adoc[协议规范]
+* link:../unit/architecture.adoc[固件架构]
+* link:../../getting-started/quick-start.adoc[快速开始]
+
+---
+
+== 📝 备注
+
+. *图标资源*: 需要从 Material Design Icons 或类似库获取
+. *MQTT 库*: Qt 官方 QMqtt 需要 Qt 商业版，开源版可用 Paho MQTT C++
+. *图表库*: QCustomPlot 是 GPL 许可，商业项目需考虑替代方案 (如 Qt Charts)
+. *跨平台打包*: Windows 使用 windeployqt, Linux 使用 linuxdeployqt, macOS 使用 macdeployqt
+
+---
+
+[align="center"]
+**HeteroLink Team** © 2026 +
+*设计完成，等待实现*

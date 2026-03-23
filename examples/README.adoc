@@ -1,0 +1,158 @@
+= HeteroLink 示例项目
+通过实际示例学习 HeteroLink 的使用。
+
+---
+
+== 📦 示例列表
+
+=== 入门示例
+
+[cols="4*",options="header"]
+|===
+|示例 |难度 |描述 |时间
+
+|link:basic-telemetry/[基础遥测]
+|⭐ 初级
+|采集并上传传感器数据
+|15 分钟
+
+|link:mqtt-control/[MQTT 控制]
+|⭐ 初级
+|通过 MQTT 控制 GPIO
+|20 分钟
+|===
+
+=== 进阶示例
+
+[cols="4*",options="header"]
+|===
+|示例 |难度 |描述 |时间
+
+|link:spi-master/[SPI 主站]
+|⭐⭐ 中级
+|高速 SPI+DMA 数据传输
+|45 分钟
+
+|link:motor-control/[电机控制]
+|⭐⭐⭐ 高级
+|电机参数在线整定
+|1 小时
+
+|link:data-logger/[数据记录器]
+|⭐⭐ 中级
+|本地数据存储和回读
+|30 分钟
+|===
+
+---
+
+== 🎯 按功能分类
+
+=== 数据采集
+* link:basic-telemetry/[基础遥测] - ADC 采集 + MQTT 上传
+* link:data-logger/[数据记录器] - 本地 Flash 存储
+
+=== 远程控制
+* link:mqtt-control/[MQTT 控制] - GPIO 远程控制
+* link:motor-control/[电机控制] - 电机参数整定
+
+=== 高速通信
+* link:spi-master/[SPI 主站] - SPI+DMA 高速传输
+
+---
+
+== 🚀 开始使用
+
+=== 1. 克隆项目
+[source,bash]
+----
+git clone https://github.com/HeteroLink/HeteroLink.git
+cd HeteroLink/examples
+----
+
+=== 2. 选择示例
+[source,bash]
+----
+cd basic-telemetry  # 或其他示例目录
+----
+
+=== 3. 编译烧录
+[source,bash]
+----
+# 设置目标芯片
+idf.py set-target esp32c6
+
+# 配置项目
+idf.py menuconfig
+
+# 编译
+idf.py build
+
+# 烧录
+idf.py -p /dev/ttyUSB0 flash
+
+# 监视输出
+idf.py -p /dev/ttyUSB0 monitor
+----
+
+---
+
+== 📖 示例结构
+
+每个示例包含：
+....
+example-name/
+├── README.md           # 示例说明
+├── main/
+│   ├── app_main.c      # 主程序
+│   ├── CMakeLists.txt  # 构建配置
+│   └── idf_component.yml # 依赖
+├── sdkconfig.defaults  # 默认配置
+└── CMakeLists.txt      # 项目配置
+....
+
+---
+
+== 💡 学习建议
+
+=== 新手路径
+. 从 link:basic-telemetry/[基础遥测] 开始
+. 理解 MQTT 通信机制
+. 尝试修改参数和代码
+. 进阶到更复杂的示例
+
+=== 实践练习
+* 修改采样频率
+* 添加新的传感器
+* 自定义 MQTT Topic
+* 实现本地数据处理
+
+---
+
+== 🤝 贡献示例
+
+欢迎提交你自己的示例！
+
+=== 要求
+* 代码清晰、有注释
+* 包含完整的 README
+* 通过编译和测试
+* 遵循项目代码规范
+
+=== 提交流程
+. Fork 项目
+. 创建示例目录
+. 编写代码和文档
+. 提交 Pull Request
+
+---
+
+== 📞 需要帮助？
+
+* 📖 link:../getting-started/installation.adoc[安装指南]
+* 🔧 link:../getting-started/troubleshooting.adoc[问题排查]
+* 💬 https://github.com/HeteroLink/HeteroLink/discussions[社区讨论]
+
+---
+
+**准备好开始了吗？** link:basic-telemetry/[基础遥测示例]
