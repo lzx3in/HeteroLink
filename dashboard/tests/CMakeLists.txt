@@ -23,6 +23,7 @@ set(TEST_SOURCES
     test_uartchannel.cpp
     test_mqttchannel.cpp
     test_devicemanager.cpp
+    test_alarmsystem.cpp
 )
 
 # =============================================================================
@@ -57,6 +58,8 @@ set(MAIN_HEADERS
     ${SRC_DIR}/storage/DataLogger.h
     ${SRC_DIR}/utils/Logger.h
 )
+
+# AlarmSystem 已经在 MAIN_SOURCES 中
 
 # =============================================================================
 # 创建测试可执行文件
