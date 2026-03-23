@@ -30,6 +30,8 @@ set(TEST_SOURCES
     test_devicemanager.cpp
     test_alarmsystem.cpp
     test_configmanager.cpp
+    test_datalogger.cpp
+    test_application.cpp
     mocks/test_mocks.cpp
 )
 
@@ -52,6 +54,7 @@ set(MAIN_SOURCES
     ${SRC_DIR}/storage/ConfigManager.cpp
     ${SRC_DIR}/storage/DataLogger.cpp
     ${SRC_DIR}/utils/Logger.cpp
+    ${SRC_DIR}/app/Application.cpp
 )
 
 set(MAIN_HEADERS
@@ -64,6 +67,7 @@ set(MAIN_HEADERS
     ${SRC_DIR}/storage/ConfigManager.h
     ${SRC_DIR}/storage/DataLogger.h
     ${SRC_DIR}/utils/Logger.h
+    ${SRC_DIR}/app/Application.h
 )
 
 # AlarmSystem 已经在 MAIN_SOURCES 中
