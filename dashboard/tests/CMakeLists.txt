@@ -21,6 +21,7 @@ set(TEST_SOURCES
     test_helpers.cpp
     test_gui_scaffold.cpp
     test_uartchannel.cpp
+    test_mqttchannel.cpp
 )
 
 # =============================================================================
@@ -90,6 +91,16 @@ foreach(test_src ${TEST_SOURCES})
         target_link_libraries(${test_name} PRIVATE
             Qt6::SerialPort
         )
+    endif()
+    
+    # MQTT 测试在启用 MQTT 时需要链接 Mqtt
+    if(HAS_QT_MQTT)
+        if(test_name STREQUAL "test_mqttchannel")
+            target_link_libraries(${test_name} PRIVATE
+                Qt6::Mqtt
+            )
+            target_compile_definitions(${test_name} PRIVATE HAS_QT_MQTT=1)
+        endif()
     endif()
     
     # 如果支持 MQTT，也链接
