@@ -18,6 +18,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Test)
 set(TEST_SOURCES
     test_protocol.cpp
     test_dataprocessor.cpp
+    test_helpers.cpp
 )
 
 # =============================================================================
@@ -84,6 +85,7 @@ foreach(test_src ${TEST_SOURCES})
     # 包含目录（使用 src 作为根目录，这样 #include "core/DataProcessor.h" 能正常工作）
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers
     )
     
     # 启用 Qt MOC/UIC/RCC
