@@ -22,6 +22,7 @@ set(TEST_SOURCES
     test_gui_scaffold.cpp
     test_uartchannel.cpp
     test_mqttchannel.cpp
+    test_devicemanager.cpp
 )
 
 # =============================================================================
@@ -34,6 +35,7 @@ set(TEST_SOURCES
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
 set(MAIN_SOURCES
+    ${SRC_DIR}/core/DeviceManager.cpp
     ${SRC_DIR}/core/DataProcessor.cpp
     ${SRC_DIR}/core/AlarmSystem.cpp
     ${SRC_DIR}/protocol/UartChannel.cpp
@@ -45,6 +47,7 @@ set(MAIN_SOURCES
 )
 
 set(MAIN_HEADERS
+    ${SRC_DIR}/core/DeviceManager.h
     ${SRC_DIR}/core/DataProcessor.h
     ${SRC_DIR}/core/AlarmSystem.h
     ${SRC_DIR}/protocol/UartChannel.h
@@ -95,7 +98,7 @@ foreach(test_src ${TEST_SOURCES})
     
     # MQTT 测试在启用 MQTT 时需要链接 Mqtt
     if(HAS_QT_MQTT)
-        if(test_name STREQUAL "test_mqttchannel")
+        if(test_name STREQUAL "test_mqttchannel" OR test_name STREQUAL "test_devicemanager")
             target_link_libraries(${test_name} PRIVATE
                 Qt6::Mqtt
             )
