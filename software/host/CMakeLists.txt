@@ -97,6 +97,24 @@ install(TARGETS heterolink-host
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+# Windows 部署：使用 windeployqt 自动复制 Qt 依赖
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "$ENV{QT_DIR}/bin")
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET heterolink-host POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}" 
+                    --release
+                    --no-compiler-runtime
+                    --no-opengl-sw
+                    --no-translations
+                    \"$<TARGET_FILE:heterolink-host>\"
+            COMMENT "Deploying Qt dependencies with windeployqt..."
+        )
+    else()
+        message(WARNING "windeployqt not found. Qt dependencies will not be deployed automatically.")
+    endif()
+endif()
+
 # 测试
 enable_testing()
 add_subdirectory(tests)

@@ -63,7 +63,7 @@ void DataWidget::setDisplayMode(const QString& mode)
     bool showWave = (mode == "wave" || mode == "both");
     bool showTable = (mode == "table" || mode == "both");
     
-    plotPlaceholder_->setVisible(showWave);
+    chartView_->setVisible(showWave);
     table_->setVisible(showTable);
     
     if (!currentDevice_.isEmpty() && dataProcessor_) {
@@ -73,7 +73,13 @@ void DataWidget::setDisplayMode(const QString& mode)
 
 void DataWidget::clear()
 {
-    // 图表清理（占位）
+    // 清理图表数据
+    for (auto series : channelSeries_.values()) {
+        series->clear();
+        for (int i = 0; i < 100; ++i) {
+            series->append(i, 0);
+        }
+    }
     
     if (table_) {
         table_->setRowCount(0);
@@ -104,30 +110,19 @@ void DataWidget::setupUI()
     toolbar->addStretch();
     
     exportBtn_ = new QPushButton("导出");
-    exportBtn_->setIcon(QIcon::fromTheme("document-export"));
     toolbar->addWidget(exportBtn_);
     
     clearBtn_ = new QPushButton("清除");
-    clearBtn_->setIcon(QIcon::fromTheme("edit-clear"));
     toolbar->addWidget(clearBtn_);
     
     layout->addLayout(toolbar);
     
-    // 波形图（占位 - 需要安装 QCustomPlot 或 Qt Charts）
+    // 波形图（使用 Qt Charts）
     auto plotGroup = new QGroupBox("实时波形");
     auto plotLayout = new QVBoxLayout(plotGroup);
     
-    plotPlaceholder_ = new QWidget();
-    plotPlaceholder_->setMinimumHeight(300);
-    auto placeholderLayout = new QVBoxLayout(plotPlaceholder_);
-    placeholderLayout->setAlignment(Qt::AlignCenter);
-    
-    statusLabel_ = new QLabel("📊 图表功能需要安装 QCustomPlot 或 Qt Charts\n\n安装方法:\n  sudo apt install libqcustomplot-dev\n  或\n  sudo apt install qt6-charts-dev");
-    statusLabel_->setAlignment(Qt::AlignCenter);
-    statusLabel_->setStyleSheet("color: #888; font-size: 14px;");
-    placeholderLayout->addWidget(statusLabel_);
-    
-    plotLayout->addWidget(plotPlaceholder_);
+    setupPlot();
+    plotLayout->addWidget(chartView_);
     layout->addWidget(plotGroup);
     
     // 数据表格
@@ -149,12 +144,58 @@ void DataWidget::setupUI()
             this, &DataWidget::onModeChanged);
     connect(exportBtn_, &QPushButton::clicked, this, &DataWidget::onExportClicked);
     connect(clearBtn_, &QPushButton::clicked, this, &DataWidget::onClearClicked);
+    
+    // 初始化表格
+    setupTable();
 }
 
 void DataWidget::setupPlot()
 {
-    // 图表功能需要安装 QCustomPlot 或 Qt Charts
-    // 当前为占位实现
+    // 创建图表
+    chart_ = new QChart();
+    chart_->setTitle("实时数据波形");
+    chart_->setAnimationOptions(QChart::NoAnimation);
+    chart_->legend()->setVisible(true);
+    chart_->legend()->setAlignment(Qt::AlignBottom);
+    
+    // 创建坐标轴
+    axisX_ = new QValueAxis();
+    axisX_->setTitleText("采样点");
+    axisX_->setRange(0, 100);
+    axisX_->setTickCount(11);
+    
+    axisY_ = new QValueAxis();
+    axisY_->setTitleText("数值");
+    axisY_->setRange(-10, 10);
+    axisY_->setTickCount(9);
+    
+    chart_->addAxis(axisX_, Qt::AlignBottom);
+    chart_->addAxis(axisY_, Qt::AlignLeft);
+    
+    // 创建 16 个通道的数据系列
+    auto colors = getChannelColors();
+    for (int ch = 0; ch < 16; ++ch) {
+        auto series = new QLineSeries();
+        series->setName(QString("通道 %1").arg(ch));
+        series->setColor(colors[ch % colors.size()]);
+        series->setPen(QPen(colors[ch % colors.size()], 1.5));
+        
+        // 初始化空数据
+        for (int i = 0; i < 100; ++i) {
+            series->append(i, 0);
+        }
+        
+        chart_->addSeries(series);
+        series->attachAxis(axisX_);
+        series->attachAxis(axisY_);
+        
+        channelSeries_[ch] = series;
+    }
+    
+    // 创建图表视图
+    chartView_ = new QChartView(chart_);
+    chartView_->setRenderHint(QPainter::Antialiasing);
+    chartView_->setMinimumHeight(300);
 }
 
 void DataWidget::setupTable()
@@ -174,9 +215,47 @@ void DataWidget::setupTable()
 
 void DataWidget::updatePlot(const QString& deviceId)
 {
-    // 图表功能需要安装 QCustomPlot 或 Qt Charts
-    // 当前为占位实现
-    Q_UNUSED(deviceId)
+    if (!dataProcessor_) {
+        return;
+    }
+    
+    auto data = dataProcessor_->getLatestData(deviceId, 100);
+    if (data.isEmpty()) {
+        return;
+    }
+    
+    // 更新每个通道的数据系列
+    for (int ch = 0; ch < 16; ++ch) {
+        if (!channelSeries_.contains(ch)) {
+            continue;
+        }
+        
+        channelSeries_[ch]->clear();
+        
+        for (int i = 0; i < data.size() && i < 100; ++i) {
+            double value = (ch < data[i].channels.size()) ? data[i].channels[ch] : 0;
+            channelSeries_[ch]->append(i, value);
+        }
+    }
+    
+    // 更新 X 轴范围
+    axisX_->setRange(0, qMax(100, data.size()));
+    
+    // 自动调整 Y 轴范围
+    double minY = 10, maxY = -10;
+    for (int ch = 0; ch < 16; ++ch) {
+        if (!channelSeries_.contains(ch)) {
+            continue;
+        }
+        for (const auto& point : channelSeries_[ch]->points()) {
+            if (point.y() < minY) minY = point.y();
+            if (point.y() > maxY) maxY = point.y();
+        }
+    }
+    if (minY < maxY) {
+        double padding = (maxY - minY) * 0.1;
+        axisY_->setRange(minY - padding, maxY + padding);
+    }
 }
 
 void DataWidget::updateTable(const QString& deviceId)

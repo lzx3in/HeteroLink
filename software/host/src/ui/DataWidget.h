@@ -15,6 +15,10 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QPushButton>
+#include <QtCharts/QChart>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QValueAxis>
 
 namespace HeteroLink {
 
@@ -70,13 +74,16 @@ private slots:
     void onClearClicked();
     
 private:
-    QWidget *plotPlaceholder_;  // 图表占位（需要 QCustomPlot 或 QCharts）
+    QChartView *chartView_;  // 图表视图
+    QChart *chart_;          // 图表对象
+    QMap<int, QLineSeries*> channelSeries_;  // 各通道数据系列
+    QValueAxis *axisX_;      // X 轴
+    QValueAxis *axisY_;      // Y 轴
     QTableWidget *table_;
     QComboBox *deviceCombo_;
     QComboBox *modeCombo_;
     QPushButton *exportBtn_;
     QPushButton *clearBtn_;
-    QLabel *statusLabel_;
     
     DataProcessor* dataProcessor_ = nullptr;
     QString currentDevice_;
