@@ -10,6 +10,7 @@ ESP32 协处理器子板固件系统文档。
 
 === 快速开始
 * link:../../getting-started/quick-start.adoc[快速开始] - 5 分钟上手指南
+* link:quick-start.adoc[固件快速开始] - 详细版（ESP-IDF 配置、烧录、MQTT 测试）
 * link:../../getting-started/installation.adoc[安装指南] - ESP-IDF 环境搭建
 * link:../../getting-started/troubleshooting.adoc[故障排查] - 常见问题解决
 
