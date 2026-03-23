@@ -133,6 +133,13 @@ foreach(test_src ${TEST_SOURCES})
         )
     endif()
     
+    # MQTT、DeviceManager 和 UART 测试需要链接 Mock 库
+    if(test_name STREQUAL "test_mqttchannel" OR test_name STREQUAL "test_devicemanager" OR test_name STREQUAL "test_uartchannel")
+        target_link_libraries(${test_name} PRIVATE
+            heterolink_mocks
+        )
+    endif()
+    
     # 包含目录（使用 src 作为根目录，这样 #include "core/DataProcessor.h" 能正常工作）
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
@@ -151,7 +158,7 @@ foreach(test_src ${TEST_SOURCES})
     target_compile_options(${test_name} PRIVATE
         $<$<CXX_COMPILER_ID:GNU>:-Wall -Wextra -pedantic>
         $<$<CXX_COMPILER_ID:Clang>:-Wall -Wextra -pedantic>
-        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /FS>
     )
     
     # 注册测试

@@ -272,6 +272,9 @@ private slots:
         MqttConfig config;
         channel.connect(config);
         
+        // Subscribe to the topic first
+        channel.subscribe("test/topic");
+        
         QSignalSpy spy(&channel, SIGNAL(messageReceived(QString,QByteArray)));
         
         channel.simulateMessage("test/topic", QByteArray("Test Message"));
