@@ -34,6 +34,7 @@ set(SOURCES
     src/ui/DevicePanel.cpp
     src/ui/DataWidget.cpp
     src/ui/ConfigPanel.cpp
+    src/ui/LogPanel.cpp
     src/storage/ConfigManager.cpp
     src/storage/DataLogger.cpp
     src/utils/Logger.cpp
@@ -51,6 +52,7 @@ set(HEADERS
     src/ui/DevicePanel.h
     src/ui/DataWidget.h
     src/ui/ConfigPanel.h
+    src/ui/LogPanel.h
     src/storage/ConfigManager.h
     src/storage/DataLogger.h
     src/utils/Logger.h

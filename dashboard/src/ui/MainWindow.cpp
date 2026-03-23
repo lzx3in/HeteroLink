@@ -7,12 +7,14 @@
 #include "ui/DevicePanel.h"
 #include "ui/DataWidget.h"
 #include "ui/ConfigPanel.h"
+#include "ui/LogPanel.h"
 #include "app/Application.h"
 #include "utils/Logger.h"
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QLabel>
 #include <QSystemTrayIcon>
+#include <QDockWidget>
 
 namespace HeteroLink {
 
@@ -24,6 +26,7 @@ MainWindow::MainWindow(Application *app, QWidget *parent)
     ui->setupUi(this);
     
     setupUI();
+    setupLogPanel();
     setupConnections();
     
     LOG_INFO("Main window created");
@@ -78,6 +81,25 @@ void MainWindow::setupUI()
     connect(ui->actionExport, &QAction::triggered, this, &MainWindow::on_actionExport_triggered);
     connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::on_actionSettings_triggered);
     connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::on_actionAbout_triggered);
+}
+
+void MainWindow::setupLogPanel()
+{
+    // 创建日志面板
+    logPanel_ = new LogPanel(this);
+    
+    // 创建停靠窗口
+    logDock_ = new QDockWidget("运行日志", this);
+    logDock_->setWidget(logPanel_);
+    logDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
+    addDockWidget(Qt::BottomDockWidgetArea, logDock_);
+    
+    // 设置 Logger 的 UI 回调
+    Logger::setUiLogCallback([this](Logger::Level level, const QString& message) {
+        logPanel_->addLogEntry(level, message);
+    });
+    
+    LOG_INFO("Log panel initialized");
 }
 
 void MainWindow::setupConnections()

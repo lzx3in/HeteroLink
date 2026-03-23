@@ -10,6 +10,7 @@
 #include <QMainWindow>
 #include <QMap>
 #include <memory>
+#include <QDockWidget>
 
 namespace Ui { class MainWindow; }
 
@@ -19,6 +20,7 @@ class Application;
 class DevicePanel;
 class DataWidget;
 class ConfigPanel;
+class LogPanel;
 struct TelemetryData;
 struct AlarmRecord;
 
@@ -55,11 +57,14 @@ private:
     DevicePanel *devicePanel_;
     DataWidget *dataWidget_;
     ConfigPanel *configPanel_;
+    QDockWidget *logDock_;
+    LogPanel *logPanel_;
     
     void setupUI();
     void setupConnections();
     void updateStatusBar();
     void showAlarmNotification(const AlarmRecord& record);
+    void setupLogPanel();
 };
 
 } // namespace HeteroLink

@@ -9,6 +9,7 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QStyleFactory>
+#include <iostream>
 
 #include "app/Application.h"
 #include "ui/MainWindow.h"

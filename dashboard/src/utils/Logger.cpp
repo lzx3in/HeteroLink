@@ -23,6 +23,14 @@ std::unique_ptr<Logger> Logger::instance_ = nullptr;
 Logger::Logger() : verbose_(false), jsonFormat_(false), 
                    maxFileSize_(0), maxFiles_(5), currentSize_(0) {}
 
+void Logger::setUiLogCallback(UiLogCallback callback)
+{
+    if (!instance_) {
+        instance_ = std::unique_ptr<Logger>(new Logger());
+    }
+    instance_->uiCallback_ = callback;
+}
+
 Logger::~Logger() {}
 
 void Logger::setJsonFormat(bool jsonFormat)
@@ -149,6 +157,11 @@ void Logger::log(Level level, const std::string& message,
     }
     
     std::string formattedMsg = instance_->formatMessage(level, message, file, line);
+    
+    // 调用 UI 回调（如果设置了）
+    if (instance_->uiCallback_) {
+        instance_->uiCallback_(level, QString::fromStdString(message));
+    }
     
     // 输出到控制台
     std::cout << formattedMsg << std::endl;

@@ -11,6 +11,7 @@
 #include <memory>
 #include <QString>
 #include <QtGlobal>
+#include <functional>
 
 namespace HeteroLink {
 
@@ -78,6 +79,14 @@ public:
                                  const QMessageLogContext& context, 
                                  const QString& message);
     
+    /**
+     * @brief 设置 UI 日志回调
+     * @brief 用于将日志转发到 UI 组件
+     * @param callback 回调函数 (Level, message)
+     */
+    using UiLogCallback = std::function<void(Level, const QString&)>;
+    static void setUiLogCallback(UiLogCallback callback);
+    
 private:
     static std::unique_ptr<Logger> instance_;
     bool verbose_;
@@ -86,6 +95,7 @@ private:
     int maxFileSize_;      // 字节，0 表示禁用轮转
     int maxFiles_;         // 最大保留文件数
     qint64 currentSize_;   // 当前文件大小
+    UiLogCallback uiCallback_;  // UI 回调
     
     Logger();
     
