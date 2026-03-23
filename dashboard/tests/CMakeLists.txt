@@ -20,6 +20,7 @@ set(TEST_SOURCES
     test_dataprocessor.cpp
     test_helpers.cpp
     test_gui_scaffold.cpp
+    test_uartchannel.cpp
 )
 
 # =============================================================================
@@ -81,6 +82,13 @@ foreach(test_src ${TEST_SOURCES})
     if(test_name STREQUAL "test_gui_scaffold")
         target_link_libraries(${test_name} PRIVATE
             Qt6::Widgets
+        )
+    endif()
+    
+    # UART 测试需要额外链接 SerialPort
+    if(test_name STREQUAL "test_uartchannel")
+        target_link_libraries(${test_name} PRIVATE
+            Qt6::SerialPort
         )
     endif()
     
