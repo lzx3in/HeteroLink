@@ -1,0 +1,3 @@
+[submodule "3rdparty/qtmqtt"]
+	path = 3rdparty/qtmqtt
+	url = https://github.com/qt/qtmqtt.git

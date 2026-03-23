@@ -10,7 +10,15 @@ set(CMAKE_AUTOUIC ON)
 # 优先查找 Qt6，如果没有则使用 Qt5
 find_package(Qt6 COMPONENTS Core Gui Widgets SerialPort QUIET)
 if(Qt6_FOUND)
-    find_package(Qt6 OPTIONAL_COMPONENTS Charts Mqtt)
+    # 先尝试查找系统安装的 Qt6Mqtt
+    find_package(Qt6Mqtt QUIET)
+    if(NOT TARGET Qt6::Mqtt)
+        # 如果没找到，尝试从子模块构建
+        if(EXISTS "${CMAKE_SOURCE_DIR}/../../3rdparty/qtmqtt/CMakeLists.build.txt")
+            message(STATUS "Building QtMqtt from submodule...")
+            add_subdirectory(${CMAKE_SOURCE_DIR}/../../3rdparty/qtmqtt ${CMAKE_BINARY_DIR}/qtmqtt-build)
+        endif()
+    endif()
     set(QT_VERSION_MAJOR 6)
 else()
     find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets SerialPort)
@@ -26,13 +34,13 @@ endif()
 # 检查是否找到 Qt MQTT
 if(Qt6_FOUND AND TARGET Qt6::Mqtt)
     set(HAS_QT_MQTT TRUE)
-    message(STATUS "Qt6 MQTT module found")
+    message(STATUS "Qt6 MQTT module found (system or submodule)")
 elseif(QT_MQTT_INCLUDE_DIR)
     set(HAS_QT_MQTT TRUE)
     message(STATUS "Qt5 MQTT module found (manual)")
 else()
     set(HAS_QT_MQTT FALSE)
-    message(STATUS "Qt MQTT module not found - MQTT support disabled")
+    message(FATAL_ERROR "Qt MQTT module not found - MQTT support is required")
 endif()
 
 # 源文件
@@ -102,34 +110,11 @@ if(QT_VERSION_MAJOR EQUAL 6)
         target_link_libraries(heterolink-host PRIVATE Qt6::Charts)
         target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
     endif()
-    if(TARGET Qt6::Mqtt)
-        target_link_libraries(heterolink-host PRIVATE Qt6::Mqtt)
-        target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT)
-    endif()
+    # MQTT 是必需的
+    target_link_libraries(heterolink-host PRIVATE Qt6::Mqtt)
+    target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT)
 else()
-    target_link_libraries(heterolink-host PRIVATE
-        Qt5::Core
-        Qt5::Gui
-        Qt5::Widgets
-        Qt5::SerialPort
-    )
-    if(TARGET Qt5::Charts)
-        target_link_libraries(heterolink-host PRIVATE Qt5::Charts)
-        target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
-    endif()
-    # Qt5 MQTT 手动链接
-    if(HAS_QT_MQTT)
-        target_include_directories(heterolink-host PRIVATE ${QT_MQTT_INCLUDE_DIR})
-        target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT)
-        # 需要链接 Qt5MQTT 库（如果可用）
-        find_library(QT_MQTT_LIBRARY NAMES Qt5MQTT Qt5QMqtt
-            PATHS /usr/lib /usr/local/lib
-            PATH_SUFFIXES x86_64-linux-gnu
-        )
-        if(QT_MQTT_LIBRARY)
-            target_link_libraries(heterolink-host PRIVATE ${QT_MQTT_LIBRARY})
-        endif()
-    endif()
+    message(FATAL_ERROR "Qt5 is not supported - Qt6 with MQTT is required")
 endif()
 
 # 包含目录
