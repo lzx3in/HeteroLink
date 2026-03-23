@@ -79,11 +79,14 @@ cmake --build build/mac-clang-debug -j$(sysctl -n hw.ncpu)
 
 #### 方式 1: Visual Studio + Qt 在线安装（推荐）
 
-1. **安装 Visual Studio 2022/2026**
+**前置条件**：
+
+1. **Visual Studio 2022/2026**
    - 工作负载：「使用 C++ 的桌面开发」
    - 组件：Windows 10/11 SDK、C++ 生成工具
 
-2. **安装 Qt 6.8+**
+2. **Qt 6.8+**
+   - 推荐：Qt 6.10.2 MSVC 2022 64-bit
    - 下载 [Qt Online Installer](https://www.qt.io/download-qt-installer)
    - 选择组件：
      - ✅ Qt 6.x → MSVC 2022 64-bit
@@ -91,21 +94,57 @@ cmake --build build/mac-clang-debug -j$(sysctl -n hw.ncpu)
      - ✅ Qt Charts (可选)
      - ✅ Qt Tools → Debugging Tools for Windows
 
-3. **设置环境变量**（PowerShell）
+3. **CMake 3.21+**
+   - 下载：https://cmake.org/download/
+
+**构建步骤**：
 
 ```powershell
-# 临时设置（当前会话）
+cd E:\Code\HeteroLink\software\host
+
+# 配置（使用 CMake Preset）
+cmake --preset win-msvc2026-release
+
+# 构建 Release 版本
+cmake --build build/win-msvc2026-release --config Release
+```
+
+**运行程序**：
+
+```powershell
+# 方式 A: 部署后运行（推荐，复制 Qt DLL）
+cd build\win-msvc2026-release\Release
+
+# 复制 Qt 核心 DLL
+Copy-Item "C:\Qt\6.10\msvc2022_64\bin\Qt6Core.dll" .
+Copy-Item "C:\Qt\6.10\msvc2022_64\bin\Qt6Gui.dll" .
+Copy-Item "C:\Qt\6.10\msvc2022_64\bin\Qt6Widgets.dll" .
+Copy-Item "C:\Qt\6.10\msvc2022_64\bin\Qt6SerialPort.dll" .
+
+# 或使用 windeployqt 自动部署
+windeployqt heterolink-host.exe
+
+# 直接运行
+.\heterolink-host.exe
+
+# 方式 B: 临时添加 PATH（不复制文件）
+$env:PATH = "C:\Qt\6.10\msvc2022_64\bin;" + $env:PATH
+cd build\win-msvc2026-release\Release
+.\heterolink-host.exe
+```
+
+**环境变量设置**：
+
+```powershell
+# 方法 1: 临时设置（当前会话）
 $env:PATH = "C:\Qt\6.10\msvc2022_64\bin;" + $env:PATH
 $env:Qt6_DIR = "C:\Qt\6.10\msvc2022_64\lib\cmake\Qt6"
 
-# 永久设置：添加到系统环境变量
-```
-
-4. **构建**
-
-```powershell
-cmake --preset win-msvc2026-release
-cmake --build build/win-msvc2026-release --config Release
+# 方法 2: 永久设置
+# 1. 打开"系统属性" → "高级" → "环境变量"
+# 2. 在"系统变量"中添加/编辑：
+#    - PATH: 添加 C:\Qt\6.10\msvc2022_64\bin
+#    - 新建 Qt6_DIR: C:\Qt\6.10\msvc2022_64\lib\cmake\Qt6
 ```
 
 #### 方式 2: vcpkg 清单模式（自动化依赖）
@@ -147,6 +186,8 @@ cmake --build build/win-msvc2026-release --config Release
 }
 ```
 
+**注意**：如果使用 vcpkg，Qt 会从 vcpkg 安装，无需单独安装 Qt。但 Qt 6.10+ 可能需要从源码编译，耗时较长。
+
 #### 方式 3: MSYS2 (MinGW GCC)
 
 ```bash
@@ -162,6 +203,25 @@ cd /c/path/to/HeteroLink/software/host
 cmake --preset win-gcc-release
 cmake --build build/win-gcc-release
 ```
+
+---
+
+#### ⚠️ 使用 QtMqtt 子模块（可选）
+
+如果 vcpkg 的 QtMqtt 不可用或版本不匹配，可以手动构建 QtMqtt 子模块：
+
+```powershell
+cd E:\Code\HeteroLink\3rdparty\qtmqtt
+mkdir build && cd build
+
+cmake .. -G "Visual Studio 18 2026" -A x64 `
+  -DCMAKE_PREFIX_PATH="C:/Qt/6.10/msvc2022_64" `
+  -DQT_HOST_PATH="C:/Qt/6.10/msvc2022_64"
+
+cmake --build . --config RelWithDebInfo
+```
+
+然后在主程序构建时，CMake 会自动使用预构建的 QtMqtt。
 
 ---
 
@@ -387,6 +447,9 @@ windeployqt heterolink-host.exe
 
 **解决**:
 ```powershell
+# 检查 Qt 安装
+Test-Path "C:\Qt\6.10\msvc2022_64\lib\cmake\Qt6\Qt6Config.cmake"
+
 # 方法 1: 设置 Qt6_DIR
 $env:Qt6_DIR = "C:\Qt\6.10\msvc2022_64\lib\cmake\Qt6"
 
@@ -405,6 +468,11 @@ cmake --preset win-msvc2026-release -DCMAKE_PREFIX_PATH="C:\Qt\6.10\msvc2022_64"
 1. 确保 Qt 安装时选择了 MSVC 版本（不是 MinGW）
 2. 检查 Qt 路径是否正确
 3. 在 Visual Studio Developer Command Prompt 中构建
+
+```powershell
+# 设置 VC 环境变量
+& "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat"
+```
 
 #### Q4: 运行时提示缺少 DLL
 
