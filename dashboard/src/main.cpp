@@ -53,6 +53,11 @@ int main(int argc, char *argv[])
                                      "使用 JSON 格式输出日志");
     parser.addOption(jsonLogOption);
     
+    QCommandLineOption logRotateOption(QStringList() << "log-rotate",
+                                       "启用日志轮转，格式：--log-rotate <sizeMB>:<maxFiles>",
+                                       "sizeMB:maxFiles");
+    parser.addOption(logRotateOption);
+    
     QCommandLineOption autoConnectOption(QStringList() << "auto-connect",
                                          "启动时自动连接设备");
     parser.addOption(autoConnectOption);
@@ -76,6 +81,16 @@ int main(int argc, char *argv[])
         // JSON 模式下立即输出一条启动日志（JSON 格式）
         std::cout << "{\"timestamp\":\"" << QDateTime::currentDateTime().toString(Qt::ISODate).toStdString() 
                   << "\",\"level\":\"INFO\",\"message\":\"JSON logging enabled\"}" << std::endl;
+    }
+    
+    if (parser.isSet(logRotateOption)) {
+        QString value = parser.value(logRotateOption);
+        QStringList parts = value.split(":");
+        int sizeMB = parts[0].toInt();
+        int maxFiles = parts.size() > 1 ? parts[1].toInt() : 5;
+        HeteroLink::Logger::setRotationConfig(sizeMB, maxFiles);
+        LOG_INFO("Log rotation configured: size=" + QString::number(sizeMB) + 
+                 "MB, maxFiles=" + QString::number(maxFiles));
     }
     
     try {

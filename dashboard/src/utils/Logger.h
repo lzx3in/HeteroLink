@@ -42,6 +42,13 @@ public:
     static void setJsonFormat(bool jsonFormat);
     
     /**
+     * @brief 启用日志文件轮转
+     * @param maxSizeMB 单个文件最大大小（MB），0 表示禁用
+     * @param maxFiles 最大保留文件数，0 表示无限
+     */
+    static void setRotationConfig(int maxSizeMB, int maxFiles = 5);
+    
+    /**
      * @brief 记录日志
      * @param level 日志级别
      * @param message 日志消息
@@ -76,9 +83,14 @@ private:
     bool verbose_;
     bool jsonFormat_;
     std::string logFile_;
+    int maxFileSize_;      // 字节，0 表示禁用轮转
+    int maxFiles_;         // 最大保留文件数
+    qint64 currentSize_;   // 当前文件大小
     
     Logger();
     
+    void checkRotation();
+    void rotateFiles();
     std::string formatMessage(Level level, const std::string& message,
                              const char* file, int line);
     std::string formatMessageJson(Level level, const std::string& message,

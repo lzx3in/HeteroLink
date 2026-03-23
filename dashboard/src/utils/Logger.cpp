@@ -6,6 +6,9 @@
 
 #include "Logger.h"
 #include <QString>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
 #include <iostream>
 #include <fstream>
 #include <chrono>
@@ -17,7 +20,8 @@ namespace HeteroLink {
 
 std::unique_ptr<Logger> Logger::instance_ = nullptr;
 
-Logger::Logger() : verbose_(false), jsonFormat_(false) {}
+Logger::Logger() : verbose_(false), jsonFormat_(false), 
+                   maxFileSize_(0), maxFiles_(5), currentSize_(0) {}
 
 Logger::~Logger() {}
 
@@ -27,6 +31,20 @@ void Logger::setJsonFormat(bool jsonFormat)
         instance_ = std::unique_ptr<Logger>(new Logger());
     }
     instance_->jsonFormat_ = jsonFormat;
+}
+
+void Logger::setRotationConfig(int maxSizeMB, int maxFiles)
+{
+    if (!instance_) {
+        instance_ = std::unique_ptr<Logger>(new Logger());
+    }
+    instance_->maxFileSize_ = maxSizeMB > 0 ? maxSizeMB * 1024 * 1024 : 0;
+    instance_->maxFiles_ = maxFiles > 0 ? maxFiles : 0;
+    
+    if (maxSizeMB > 0) {
+        LOG_INFO("Log rotation enabled: max size=" + std::to_string(maxSizeMB) + 
+                 "MB, max files=" + std::to_string(maxFiles));
+    }
 }
 
 void Logger::installQtMessageHandler()
@@ -140,6 +158,8 @@ void Logger::log(Level level, const std::string& message,
         std::ofstream file(instance_->logFile_, std::ios::app);
         if (file.is_open()) {
             file << formattedMsg << std::endl;
+            instance_->currentSize_ += formattedMsg.size() + 1; // +1 for newline
+            instance_->checkRotation();
         }
     }
 }
@@ -254,6 +274,60 @@ std::string Logger::levelToString(Level level)
         case Level::ERROR:   return "ERROR";
         default:             return "UNKNOWN";
     }
+}
+
+void Logger::checkRotation()
+{
+    if (maxFileSize_ <= 0) {
+        return; // 轮转禁用
+    }
+    
+    if (currentSize_ >= maxFileSize_) {
+        rotateFiles();
+    }
+}
+
+void Logger::rotateFiles()
+{
+    if (logFile_.empty()) {
+        return;
+    }
+    
+    QString baseFile = QString::fromStdString(logFile_);
+    QFileInfo fi(baseFile);
+    QString dir = fi.absolutePath();
+    QString fileName = fi.fileName();
+    
+    // 删除最旧的文件（如果达到上限）
+    if (maxFiles_ > 0) {
+        QString oldestFile = dir + "/" + fileName + "." + QString::number(maxFiles_);
+        if (QFile::exists(oldestFile)) {
+            QFile::remove(oldestFile);
+        }
+    }
+    
+    // 旋转现有文件：.1 -> .2, .2 -> .3, etc.
+    if (maxFiles_ > 0) {
+        for (int i = maxFiles_ - 1; i >= 1; --i) {
+            QString oldPath = dir + "/" + fileName + "." + QString::number(i);
+            QString newPath = dir + "/" + fileName + "." + QString::number(i + 1);
+            if (QFile::exists(oldPath)) {
+                QFile::rename(oldPath, newPath);
+            }
+        }
+    }
+    
+    // 当前文件 -> .1
+    QString rotatedPath = baseFile + ".1";
+    if (QFile::exists(baseFile)) {
+        QFile::rename(baseFile, rotatedPath);
+    }
+    
+    // 重置当前大小
+    currentSize_ = 0;
+    
+    // 记录轮转事件（输出到控制台）
+    std::cerr << "[LOG] Rotated: " << logFile_ << " -> " << rotatedPath.toStdString() << std::endl;
 }
 
 } // namespace HeteroLink
