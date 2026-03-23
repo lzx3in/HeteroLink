@@ -75,11 +75,10 @@
     {
       "name": "windows-msvc-2026",
       "displayName": "Windows MSVC 2026 x64",
-      "description": "Visual Studio 2026 (v144) 64 位",
+      "description": "Visual Studio 2026 64 位版本",
       "inherits": "base-windows",
       "generator": "Visual Studio 18 2026",
       "architecture": "x64",
-      "toolset": "v144",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_FLAGS": "/W4 /permissive- /Zc:__cplusplus",
@@ -90,7 +89,7 @@
     {
       "name": "windows-msvc-2026-debug",
       "displayName": "Windows MSVC 2026 x64 Debug",
-      "description": "Visual Studio 2026 (v144) 64 位 Debug 版本",
+      "description": "Visual Studio 2026 64 位 Debug 版本",
       "inherits": "windows-msvc-2026",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
