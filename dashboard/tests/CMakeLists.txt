@@ -120,6 +120,7 @@ foreach(test_src ${TEST_SOURCES})
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers
+        ${CMAKE_CURRENT_SOURCE_DIR}/mocks
     )
     
     # 启用 Qt MOC/UIC/RCC
@@ -148,6 +149,15 @@ endforeach()
 
 # =============================================================================
 # 打印测试配置信息
+# =============================================================================
+
+message(STATUS "Configured tests:")
+foreach(test_src ${TEST_SOURCES})
+    get_filename_component(test_name ${test_src} NAME_WE)
+    message(STATUS "  - ${test_name}")
+endforeach()
+each()
+��试配置信息
 # =============================================================================
 
 message(STATUS "Configured tests:")
