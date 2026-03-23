@@ -1,49 +1,18 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 project(HeteroLinkHost VERSION 0.1.0 LANGUAGES CXX)
 
+# vcpkg 清单模式集成
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# 优先查找 Qt6，如果没有则使用 Qt5
-find_package(Qt6 COMPONENTS Core Gui Widgets SerialPort QUIET)
-if(Qt6_FOUND)
-    # 先尝试查找系统安装的 Qt6Mqtt
-    find_package(Qt6Mqtt QUIET)
-    if(NOT TARGET Qt6::Mqtt)
-        # 如果没找到，尝试从预构建的子模块查找
-        set(QT_MQTT_BUILD_PATH "${CMAKE_SOURCE_DIR}/../../3rdparty/qtmqtt/build")
-        if(EXISTS "${QT_MQTT_BUILD_PATH}/lib/cmake/Qt6Mqtt/Qt6MqttConfig.cmake")
-            message(STATUS "Using pre-built QtMqtt from ${QT_MQTT_BUILD_PATH}")
-            list(APPEND CMAKE_PREFIX_PATH "${QT_MQTT_BUILD_PATH}")
-            find_package(Qt6Mqtt REQUIRED)
-        endif()
-    endif()
-    set(QT_VERSION_MAJOR 6)
-else()
-    find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets SerialPort)
-    find_package(Qt5 OPTIONAL_COMPONENTS Charts)
-    # Qt5 没有官方的 MQTT 模块，需要手动查找
-    find_path(QT_MQTT_INCLUDE_DIR QMqttClient
-        PATHS /usr/include/qt5/QMqtt /usr/local/include/qt5/QMqtt
-        PATH_SUFFIXES Qt5QMqtt
-    )
-    set(QT_VERSION_MAJOR 5)
-endif()
-
-# 检查是否找到 Qt MQTT
-if(Qt6_FOUND AND TARGET Qt6::Mqtt)
-    set(HAS_QT_MQTT TRUE)
-    message(STATUS "Qt6 MQTT module found (system or submodule)")
-elseif(QT_MQTT_INCLUDE_DIR)
-    set(HAS_QT_MQTT TRUE)
-    message(STATUS "Qt5 MQTT module found (manual)")
-else()
-    set(HAS_QT_MQTT FALSE)
-    message(FATAL_ERROR "Qt MQTT module not found - MQTT support is required")
-endif()
+# 使用 vcpkg 提供的 Qt6 和 MQTT
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort Mqtt Charts)
+set(QT_VERSION_MAJOR 6)
+set(HAS_QT_MQTT TRUE)
+set(HAS_QT_CHARTS TRUE)
 
 # 源文件
 set(SOURCES
@@ -100,24 +69,15 @@ add_executable(heterolink-host
     ${RESOURCES}
 )
 
-# 链接 Qt 库
-if(QT_VERSION_MAJOR EQUAL 6)
-    target_link_libraries(heterolink-host PRIVATE
-        Qt6::Core
-        Qt6::Gui
-        Qt6::Widgets
-        Qt6::SerialPort
-    )
-    if(TARGET Qt6::Charts)
-        target_link_libraries(heterolink-host PRIVATE Qt6::Charts)
-        target_compile_definitions(heterolink-host PRIVATE HAS_QT_CHARTS)
-    endif()
-    # MQTT 是必需的
-    target_link_libraries(heterolink-host PRIVATE Qt6::Mqtt)
-    target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT)
-else()
-    message(FATAL_ERROR "Qt5 is not supported - Qt6 with MQTT is required")
-endif()
+# 链接 Qt 库 (vcpkg 提供)
+target_link_libraries(heterolink-host PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::SerialPort
+    Qt6::Mqtt
+    Qt6::Charts
+)
 
 # 包含目录
 target_include_directories(heterolink-host PRIVATE
