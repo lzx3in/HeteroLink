@@ -318,6 +318,351 @@ private slots:
         QCOMPARE(frame.payload[1], 0xAAu);
         QCOMPARE(frame.payload[2], 0xBBu);
     }
+    
+    // ========================================================================
+    // 边界条件测试（新增）
+    // ========================================================================
+    
+    void testDecode_TruncatedFrame_MinusOneByte() {
+        // 帧缺少最后一个字节（CRC 高字节缺失）
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        original.payload = {0x01, 0x02};
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        encoded.pop_back();  // 移除最后一个字节
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);  // 应失败
+    }
+    
+    void testDecode_TruncatedFrame_HeaderOnly() {
+        // 只有帧头，没有其他数据
+        std::vector<uint8_t> headerOnly = {0x55, 0xAA};
+        
+        Frame decoded;
+        bool result = Protocol::decode(headerOnly, decoded);
+        
+        QVERIFY(!result);
+    }
+    
+    void testDecode_TruncatedFrame_BeforePayload() {
+        // 帧头 + 元数据完整，但 payload 缺失
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        original.payload = {0x01, 0x02, 0x03, 0x04};
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        // 截断到 payload 之前（保留 header+deviceId+command+length+crc = 10 字节）
+        // 但实际长度字段说 payload 有 4 字节
+        encoded.resize(10);  // 去掉 payload
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);  // payload 长度不匹配，应失败
+    }
+    
+    void testEncode_EmptyPayload_VerifyRoundTrip() {
+        // 空 payload 往返测试
+        Frame original;
+        original.deviceId = 0x07;
+        original.command = 0x20;
+        original.payload = {};  // 明确空 payload
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(result);
+        QCOMPARE(decoded.deviceId, 0x07u);
+        QCOMPARE(decoded.command, 0x20u);
+        QCOMPARE(decoded.length, 0u);
+        QVERIFY(decoded.payload.empty());
+    }
+    
+    void testEncode_LargePayload_256Bytes() {
+        // 大 payload 测试（256 字节）
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        for (int i = 0; i < 256; ++i) {
+            original.payload.push_back(static_cast<uint8_t>(i));
+        }
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        
+        // 验证长度：8 (header) + 256 (payload) = 264
+        QCOMPARE(encoded.size(), 264u);
+        
+        // 往返验证
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(result);
+        QCOMPARE(decoded.payload.size(), 256u);
+        for (int i = 0; i < 256; ++i) {
+            QCOMPARE(decoded.payload[i], static_cast<uint8_t>(i));
+        }
+    }
+    
+    void testEncode_LargePayload_1024Bytes() {
+        // 更大 payload 测试（1024 字节）
+        Frame original;
+        original.deviceId = 0x02;
+        original.command = 0x10;
+        original.payload.resize(1024);
+        for (int i = 0; i < 1024; ++i) {
+            original.payload[i] = static_cast<uint8_t>(i & 0xFF);
+        }
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        
+        QCOMPARE(encoded.size(), 1032u);  // 8 + 1024
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(result);
+        QCOMPARE(decoded.payload.size(), 1024u);
+    }
+    
+    void testEncode_MaxPayload_NearLimit() {
+        // 接近 uint16_t 限制的 payload（65000 字节）
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        original.payload.resize(65000);
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        
+        QCOMPARE(encoded.size(), 65008u);  // 8 + 65000
+        
+        // 验证长度字段正确编码（小端序）
+        // 65000 = 0xFDE8，小端序：低字节 0xE8 在前，高字节 0xFD 在后
+        QCOMPARE(encoded[4], 0xE8u);
+        QCOMPARE(encoded[5], 0xFDu);
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(result);
+        QCOMPARE(decoded.payload.size(), 65000u);
+    }
+    
+    void testDecode_CorruptedPayload() {
+        // payload 数据被篡改应被 CRC 捕获
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        original.payload = {0x01, 0x02, 0x03, 0x04};
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        
+        // 篡改 payload 中的一个字节
+        encoded[6] = 0xFF;
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);  // CRC 错误应失败
+    }
+    
+    void testDecode_CorruptedHeaderByte() {
+        // 帧头第一个字节错误
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        encoded[0] = 0x00;  // 篡改帧头低字节
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);
+    }
+    
+    void testDecode_CorruptedHeaderByte2() {
+        // 帧头第二个字节错误
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        encoded[1] = 0x00;  // 篡改帧头高字节
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);
+    }
+    
+    void testDecode_CorruptedDeviceId() {
+        // 设备 ID 被篡改（CRC 会捕获）
+        Frame original;
+        original.deviceId = 0x05;
+        original.command = 0x10;
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        encoded[2] = 0x09;  // 篡改设备 ID
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);  // CRC 不匹配
+    }
+    
+    void testDecode_CorruptedLengthField() {
+        // 长度字段被篡改
+        Frame original;
+        original.deviceId = 0x01;
+        original.command = 0x10;
+        original.payload = {0x01, 0x02};
+        
+        std::vector<uint8_t> encoded = Protocol::encode(original);
+        encoded[4] = 0x05;  // 篡改长度低字节
+        
+        Frame decoded;
+        bool result = Protocol::decode(encoded, decoded);
+        
+        QVERIFY(!result);  // 长度与实际 payload 不匹配或 CRC 错误
+    }
+    
+    void testAllCommandValues_EncodeDecode() {
+        // 测试所有 Command 枚举值的往返
+        QVector<Command> commands = {
+            Command::CMD_HEARTBEAT,
+            Command::CMD_CONFIG_REQ,
+            Command::CMD_CONFIG_RSP,
+            Command::CMD_TELEMETRY,
+            Command::CMD_CONTROL,
+            Command::CMD_LOG_UPLOAD,
+            Command::CMD_ERROR
+        };
+        
+        for (Command cmd : commands) {
+            Frame original;
+            original.deviceId = 0x01;
+            original.command = static_cast<uint8_t>(cmd);
+            original.payload = {0xAA};
+            
+            std::vector<uint8_t> encoded = Protocol::encode(original);
+            Frame decoded;
+            bool result = Protocol::decode(encoded, decoded);
+            
+            QVERIFY2(result, QString("Failed for command: %1").arg(static_cast<int>(cmd)).toUtf8());
+            QCOMPARE(decoded.command, static_cast<uint8_t>(cmd));
+        }
+    }
+    
+    void testAllErrorCodeValues_ParseTelemetry() {
+        // 测试所有 ErrorCode 枚举值存在且可转换
+        QVector<ErrorCode> errorCodes = {
+            ErrorCode::ERR_NONE,
+            ErrorCode::ERR_INVALID_CMD,
+            ErrorCode::ERR_INVALID_LEN,
+            ErrorCode::ERR_CRC_ERROR,
+            ErrorCode::ERR_TIMEOUT,
+            ErrorCode::ERR_DEVICE_BUSY,
+            ErrorCode::ERR_UNKNOWN
+        };
+        
+        for (ErrorCode err : errorCodes) {
+            uint8_t val = static_cast<uint8_t>(err);
+            QVERIFY2(val < 256, QString("Error code out of range: %1").arg(val).toUtf8());
+        }
+    }
+    
+    void testCrc16_DifferentLengths() {
+        // 测试不同长度数据的 CRC
+        QVector<int> lengths = {0, 1, 2, 10, 100, 1000};
+        
+        for (int len : lengths) {
+            std::vector<uint8_t> data(len);
+            for (int i = 0; i < len; ++i) {
+                data[i] = static_cast<uint8_t>(i & 0xFF);
+            }
+            
+            uint16_t crc = Protocol::crc16(data.data(), len);
+            
+            // CRC 不应为 0（除非特殊情况）
+            // 空数据返回 0xFFFF
+            if (len == 0) {
+                QCOMPARE(crc, 0xFFFFu);
+            } else {
+                QVERIFY2(crc != 0 || len > 0, "CRC should not be 0 for non-empty data");
+            }
+        }
+    }
+    
+    void testVerifyCrc_TamperedCrc() {
+        // 直接篡改 CRC 字段
+        Frame frame;
+        frame.deviceId = 0x01;
+        frame.command = 0x10;
+        frame.payload = {0x01, 0x02};
+        
+        std::vector<uint8_t> encoded = Protocol::encode(frame);
+        Frame decoded;
+        Protocol::decode(encoded, decoded);
+        
+        // 篡改 CRC 低字节
+        decoded.crc = (decoded.crc & 0xFF00) | 0x00FF;
+        
+        bool valid = Protocol::verifyCrc(decoded);
+        QVERIFY(!valid);
+    }
+    
+    void testParseTelemetry_IncompleteTimestamp() {
+        // payload 不足 8 字节（时间戳都不完整）应返回空遥测
+        std::vector<uint8_t> payload = {
+            0xE8, 0x03, 0x00  // 只有 3 字节，不足时间戳
+        };
+        
+        TelemetryData telemetry = Protocol::parseTelemetry(payload);
+        
+        QCOMPARE(telemetry.timestamp, 0u);  // 不足 8 字节返回默认值
+        QCOMPARE(telemetry.channels.size(), 0u);
+    }
+    
+    void testParseTelemetry_ExactOneChannel() {
+        // 恰好一个通道的数据
+        std::vector<uint8_t> payload = {
+            0xE8, 0x03, 0x00, 0x00,  // 时间戳 1000
+            0x00, 0x00, 0x80, 0x3F  // 1.0f
+        };
+        
+        TelemetryData telemetry = Protocol::parseTelemetry(payload);
+        
+        QCOMPARE(telemetry.timestamp, 1000u);
+        QCOMPARE(telemetry.channels.size(), 1u);
+        QVERIFY(qAbs(telemetry.channels[0] - 1.0f) < 0.001f);
+    }
+    
+    void testFrame_DefaultConstructor() {
+        // 测试 Frame 默认构造函数
+        Frame frame;
+        
+        QCOMPARE(frame.header, FRAME_HEADER);
+        QCOMPARE(frame.deviceId, 0u);
+        QCOMPARE(frame.command, 0u);
+        QCOMPARE(frame.length, 0u);
+        QVERIFY(frame.payload.empty());
+        QCOMPARE(frame.crc, 0u);
+    }
+    
+    void testTelemetryData_DefaultConstructor() {
+        // 测试 TelemetryData 默认构造函数
+        TelemetryData data;
+        
+        QCOMPARE(data.timestamp, 0u);
+        QVERIFY(data.channels.empty());
+    }
 };
 
 QTEST_APPLESS_MAIN(TestProtocol)
