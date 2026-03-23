@@ -1,0 +1,74 @@
+= HeteroLink 维护者信息
+
+== 👥 核心维护团队
+
+=== 项目创始人
+* *@lzx*
+** GitHub: link:https://github.com/lzx[@lzx]
+** 角色：项目发起、架构设计、核心开发者
+** 时区：Asia/Shanghai (UTC+8)
+
+== 📋 维护者职责
+
+=== 代码审查
+* 审查 Pull Requests
+* 确保代码质量符合项目标准
+* 验证测试覆盖
+
+=== Issue 管理
+* 分类和标记新 Issue
+* 回复用户问题
+* 关闭已解决的问题
+
+=== 版本发布
+* 准备 Release Notes
+* 验证发布候选版本
+* 管理版本标签
+
+=== 社区建设
+* 回答社区问题
+* 组织开发讨论
+* 推广项目
+
+== 🔄 轮值安排
+_(待完善 - 欢迎加入维护团队!)_
+
+== 📞 联系方式
+
+=== 公开渠道
+* GitHub Issues: link:https://github.com/HeteroLink/HeteroLink/issues[HeteroLink/issues]
+* GitHub Discussions: link:https://github.com/HeteroLink/HeteroLink/discussions[HeteroLink/discussions]
+
+=== 私人联系
+* 安全问题：security@heterolink.dev (待设立)
+* 商务合作：contact@heterolink.dev (待设立)
+
+== 🎯 成为维护者
+我们欢迎活跃的贡献者加入维护团队！
+
+=== 要求
+* 持续贡献 3 个月以上
+* 合并至少 5 个有意义的 PR
+* 积极参与社区讨论
+* 理解项目愿景和架构
+
+=== 申请方式
+. 通过持续贡献展示你的能力
+. 联系现有维护者表达意向
+. 维护团队讨论决定
+. 公开宣布新维护者
+
+== 📜 决策流程
+
+=== 技术决策
+* 小改动：单个维护者批准
+* 中等改动：2 个维护者批准
+* 重大改动：维护团队投票 (简单多数)
+
+=== 社区决策
+* 通过 GitHub Discussions 征求意见
+* 重要变更需要社区公示期 (至少 7 天)
+
+'''
+
+*最后更新*: 2026-03-21
