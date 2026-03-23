@@ -35,22 +35,22 @@ void MqttChannel::setupClient()
     client_->setHostname(config_.brokerHost);
     client_->setPort(config_.brokerPort);
     
-    connect(client_.get(), &QMqttClient::connected, this, [this]() {
+    // 使用 Qt6 connect 语法
+    QObject::connect(client_.get(), &QMqttClient::connected, [this]() {
         connected_ = true;
         reconnectAttempts_ = 0;  // 重置重连计数
         LOG_INFO("MQTT connected to " + config_.brokerHost.toStdString() + ":" + 
                  std::to_string(config_.brokerPort));
         emit connectionChanged(true);
         
-        // 连接成功后重新订阅
+        // 连接成功后重新订阅 - 通过 client 重新订阅
         for (auto it = subscriptions_.begin(); it != subscriptions_.end(); ++it) {
-            if (it.value()) {
-                it.value()->subscribe();
-            }
+            const QString& topic = it.key();
+            client_->subscribe(topic);
         }
     });
     
-    connect(client_.get(), &QMqttClient::disconnected, this, [this]() {
+    QObject::connect(client_.get(), &QMqttClient::disconnected, [this]() {
         connected_ = false;
         LOG_INFO("MQTT disconnected");
         emit connectionChanged(false);
@@ -59,7 +59,8 @@ void MqttChannel::setupClient()
         attemptReconnect();
     });
     
-    connect(client_.get(), &QMqttClient::errorOccurred, this, [this](QMqttClient::ClientError error) {
+    // QtMqtt 使用 errorChanged 信号
+    QObject::connect(client_.get(), &QMqttClient::errorChanged, [this](QMqttClient::ClientError error) {
         QString errorMsg;
         switch (error) {
             case QMqttClient::ClientError::InvalidProtocolVersion:
@@ -85,7 +86,8 @@ void MqttChannel::setupClient()
         emit errorOccurred(errorMsg);
     });
     
-    connect(client_.get(), &QMqttClient::messageReceived, this, [this](const QByteArray& message, const QMqttTopicName& topic) {
+    // messageReceived 通过 subscription 触发，这里监听所有消息
+    QObject::connect(client_.get(), &QMqttClient::messageReceived, [this](const QByteArray& message, const QMqttTopicName& topic) {
         QString topicName = topic.name();
         LOG_DEBUG("MQTT message received on topic: " + topicName.toStdString());
         

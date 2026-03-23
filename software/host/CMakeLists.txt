@@ -13,10 +13,12 @@ if(Qt6_FOUND)
     # 先尝试查找系统安装的 Qt6Mqtt
     find_package(Qt6Mqtt QUIET)
     if(NOT TARGET Qt6::Mqtt)
-        # 如果没找到，尝试从子模块构建
-        if(EXISTS "${CMAKE_SOURCE_DIR}/../../3rdparty/qtmqtt/CMakeLists.build.txt")
-            message(STATUS "Building QtMqtt from submodule...")
-            add_subdirectory(${CMAKE_SOURCE_DIR}/../../3rdparty/qtmqtt ${CMAKE_BINARY_DIR}/qtmqtt-build)
+        # 如果没找到，尝试从预构建的子模块查找
+        set(QT_MQTT_BUILD_PATH "${CMAKE_SOURCE_DIR}/../../3rdparty/qtmqtt/build")
+        if(EXISTS "${QT_MQTT_BUILD_PATH}/lib/cmake/Qt6Mqtt/Qt6MqttConfig.cmake")
+            message(STATUS "Using pre-built QtMqtt from ${QT_MQTT_BUILD_PATH}")
+            list(APPEND CMAKE_PREFIX_PATH "${QT_MQTT_BUILD_PATH}")
+            find_package(Qt6Mqtt REQUIRED)
         endif()
     endif()
     set(QT_VERSION_MAJOR 6)
@@ -138,6 +140,4 @@ install(TARGETS heterolink-host
 # 测试
 enable_testing()
 add_subdirectory(tests)
-
-# 示例程序
 add_subdirectory(examples)

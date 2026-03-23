@@ -7,6 +7,7 @@
 #include <QCoreApplication>
 #include <QTimer>
 #include <QDebug>
+#include <QDateTime>
 
 #include "protocol/MqttChannel.h"
 
