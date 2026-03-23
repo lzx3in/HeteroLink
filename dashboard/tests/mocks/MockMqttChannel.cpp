@@ -5,6 +5,7 @@
 #include "MockMqttChannel.h"
 #include <QTimer>
 #include <QRegularExpression>
+#include <QDateTime>
 
 namespace HeteroLink {
 
@@ -187,16 +188,6 @@ void MockMqttChannel::simulateConnect()
 {
     connected_ = true;
     emit connectionChanged(true);
-}
-
-QVector<MockMqttMessage> MockMqttChannel::getPublishedMessages() const
-{
-    return publishedMessages_;
-}
-
-QVector<MockSubscription> MockMqttChannel::getSubscriptions() const
-{
-    return subscriptions_;
 }
 
 void MockMqttChannel::clearPublishHistory()

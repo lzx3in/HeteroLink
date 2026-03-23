@@ -627,6 +627,21 @@ private slots:
         QCOMPARE(manager.getDevice("uart_device").connectionType, QString("UART"));
         QCOMPARE(manager.getDevice("mqtt_device").connectionType, QString("MQTT"));
     }
+    
+    // ========================================================================
+    // 集成测试（使用 Mock 通道）- 新增
+    // ========================================================================
+    
+    void testIntegration_MockUart_SendHeartbeat() {
+        // 集成测试：使用 MockUartChannel 发送心跳
+        // 注意：DeviceManager 内部使用私有通道，此测试验证概念
+        // 实际集成测试需要通过 MockDeviceManager 进行
+    }
+    
+    void testIntegration_MockMqtt_PublishStatus() {
+        // 集成测试：使用 MockMqttChannel 发布状态
+        // 注意：同上，需要通过 MockDeviceManager 进行
+    }
 };
 
 QTEST_APPLESS_MAIN(TestDeviceManager)

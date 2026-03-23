@@ -26,8 +26,8 @@ add_library(heterolink_mocks STATIC
 # 链接必要的库
 target_link_libraries(heterolink_mocks PUBLIC
     Qt6::Core
+    Qt6::Test
     Qt6::SerialPort
-    heterolink-host  # 链接主项目以访问基类
 )
 
 # 包含目录

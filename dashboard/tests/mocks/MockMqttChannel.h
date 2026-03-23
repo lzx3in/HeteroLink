@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HeteroLink Host - Mock MQTT 通道
  * 
  * @file MockMqttChannel.h
@@ -55,18 +55,18 @@ public:
      * @param config 配置
      * @return 总是返回 true（除非设置 shouldFail_）
      */
-    bool connect(const MqttConfig& config) override;
+    bool connect(const MqttConfig& config) ;
     
     /**
      * @brief 断开连接（模拟）
      */
-    void disconnect() override;
+    void disconnect() ;
     
     /**
      * @brief 检查连接状态
      * @return 是否已连接
      */
-    bool isConnected() const override;
+    bool isConnected() const ;
     
     /**
      * @brief 获取当前配置
@@ -79,13 +79,13 @@ public:
      * @param topic Topic 名称
      * @return 总是返回 true
      */
-    bool subscribe(const QString& topic) override;
+    bool subscribe(const QString& topic) ;
     
     /**
      * @brief 取消订阅（模拟）
      * @param topic Topic 名称
      */
-    void unsubscribe(const QString& topic) override;
+    void unsubscribe(const QString& topic) ;
     
     /**
      * @brief 发布消息（模拟）
@@ -96,44 +96,44 @@ public:
      * @return 总是返回 true
      */
     bool publish(const QString& topic, const QByteArray& payload,
-                int qos = 1, bool retain = false) override;
+                int qos = 1, bool retain = false) ;
     
     /**
      * @brief 发布设备状态（模拟）
      * @param deviceId 设备 ID
      * @param online 是否在线
      */
-    void publishDeviceStatus(const QString& deviceId, bool online) override;
+    void publishDeviceStatus(const QString& deviceId, bool online) ;
     
     /**
      * @brief 发布遥测数据（模拟）
      * @param deviceId 设备 ID
      * @param data JSON 格式数据
      */
-    void publishTelemetry(const QString& deviceId, const QString& data) override;
+    void publishTelemetry(const QString& deviceId, const QString& data) ;
     
     /**
      * @brief 发布命令到设备（模拟）
      * @param deviceId 设备 ID
      * @param command 命令内容
      */
-    void publishCommand(const QString& deviceId, const QString& command) override;
+    void publishCommand(const QString& deviceId, const QString& command) ;
     
     /**
      * @brief 订阅设备命令（模拟）
      * @param deviceId 设备 ID
      */
-    void subscribeDeviceCommands(const QString& deviceId) override;
+    void subscribeDeviceCommands(const QString& deviceId) ;
     
     /**
      * @brief 订阅所有设备状态（模拟）
      */
-    void subscribeAllDeviceStatus() override;
+    void subscribeAllDeviceStatus() ;
     
     /**
      * @brief 订阅所有设备遥测（模拟）
      */
-    void subscribeAllDeviceTelemetry() override;
+    void subscribeAllDeviceTelemetry() ;
     
     /**
      * @brief 模拟接收消息
@@ -214,3 +214,4 @@ private:
 };
 
 } // namespace HeteroLink
+

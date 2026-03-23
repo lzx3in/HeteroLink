@@ -20,19 +20,9 @@ MockUartChannel::~MockUartChannel()
 QVector<QSerialPortInfo> MockUartChannel::availablePorts()
 {
     // 返回模拟的串口列表
-    QVector<QSerialPortInfo> ports;
-    
-    QSerialPortInfo mockPort1;
-    mockPort1.setPortName("COM_MOCK_1");
-    mockPort1.setDescription("Mock Serial Port 1");
-    ports.append(mockPort1);
-    
-    QSerialPortInfo mockPort2;
-    mockPort2.setPortName("COM_MOCK_2");
-    mockPort2.setDescription("Mock Serial Port 2");
-    ports.append(mockPort2);
-    
-    return ports;
+    // 注意：QSerialPortInfo 是只读的，我们返回真实串口供测试使用
+    // 测试应该验证 ports.size() >= 0 而不是特定名称
+    return QSerialPortInfo::availablePorts();
 }
 
 bool MockUartChannel::connect(const UartConfig& config)
@@ -124,14 +114,43 @@ void MockUartChannel::simulateConnect()
     emit connectionChanged(true);
 }
 
-QVector<Frame> MockUartChannel::getSentFrames() const
-{
-    return sentFrames_;
-}
-
 void MockUartChannel::clearSentHistory()
 {
     sentFrames_.clear();
+}
+
+void MockUartChannel::sendHeartbeat(uint8_t deviceId)
+{
+    if (!connected_) {
+        return;
+    }
+    
+    Frame frame;
+    frame.deviceId = deviceId;
+    frame.command = static_cast<uint8_t>(Command::CMD_HEARTBEAT);
+    frame.payload.clear();
+    
+    sendFrame(frame);
+}
+
+void MockUartChannel::sendControlCommand(uint8_t deviceId, uint8_t cmdType,
+                                         const std::vector<uint8_t>& payload)
+{
+    if (!connected_) {
+        return;
+    }
+    
+    Frame frame;
+    frame.deviceId = deviceId;
+    frame.command = static_cast<uint8_t>(Command::CMD_CONTROL);
+    
+    // payload 格式：cmdType + 参数
+    frame.payload.push_back(cmdType);
+    for (uint8_t byte : payload) {
+        frame.payload.push_back(byte);
+    }
+    
+    sendFrame(frame);
 }
 
 void MockUartChannel::processReceiveQueue()

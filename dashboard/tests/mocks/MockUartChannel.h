@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HeteroLink Host - Mock UART 通道
  * 
  * @file MockUartChannel.h
@@ -41,18 +41,18 @@ public:
      * @param config 配置
      * @return 总是返回 true
      */
-    bool connect(const UartConfig& config) override;
+    bool connect(const UartConfig& config) ;
     
     /**
      * @brief 断开连接（模拟）
      */
-    void disconnect() override;
+    void disconnect() ;
     
     /**
      * @brief 检查连接状态
      * @return 是否已连接
      */
-    bool isConnected() const override;
+    bool isConnected() const ;
     
     /**
      * @brief 获取当前配置
@@ -65,7 +65,7 @@ public:
      * @param frame 帧
      * @return 总是返回 true
      */
-    bool sendFrame(const Frame& frame) override;
+    bool sendFrame(const Frame& frame) ;
     
     /**
      * @brief 模拟接收数据
@@ -115,6 +115,33 @@ public:
     void setSimulatedDelay(int delayMs) { simulatedDelayMs_ = delayMs; }
     
     /**
+     * @brief 设置设备 ID（模拟）
+     * @param deviceId 设备 ID
+     */
+    void setDeviceId(uint8_t deviceId) { deviceId_ = deviceId; }
+    
+    /**
+     * @brief 获取设备 ID
+     * @return 设备 ID
+     */
+    uint8_t getDeviceId() const { return deviceId_; }
+    
+    /**
+     * @brief 发送心跳（模拟）
+     * @param deviceId 设备 ID
+     */
+    void sendHeartbeat(uint8_t deviceId) ;
+    
+    /**
+     * @brief 发送控制命令（模拟）
+     * @param deviceId 设备 ID
+     * @param cmdType 命令类型
+     * @param payload 命令参数
+     */
+    void sendControlCommand(uint8_t deviceId, uint8_t cmdType,
+                           const std::vector<uint8_t>& payload) ;
+    
+    /**
      * @brief 设置是否模拟错误
      * @param shouldFail 是否失败
      */
@@ -122,6 +149,7 @@ public:
     
 private:
     UartConfig config_;
+    uint8_t deviceId_ = 0;
     bool connected_ = false;
     QVector<Frame> sentFrames_;
     QQueue<QByteArray> receiveQueue_;
@@ -132,3 +160,4 @@ private:
 };
 
 } // namespace HeteroLink
+

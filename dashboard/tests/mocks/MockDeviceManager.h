@@ -104,6 +104,15 @@ public:
      */
     void clearMockDevices();
     
+    /**
+     * @brief 更新设备状态（公共版本，用于测试）
+     * @param deviceId 设备 ID
+     * @param connected 是否已连接
+     * @param online 是否在线
+     * @note 基类的 updateDeviceStatus 是私有的，此方法提供测试访问
+     */
+    void updateDeviceStatusPublic(const QString& deviceId, bool connected, bool online);
+    
 private:
     QMap<QString, MockUartChannel*> mockUartChannels_;
     MockMqttChannel* mockMqttChannel_ = nullptr;
