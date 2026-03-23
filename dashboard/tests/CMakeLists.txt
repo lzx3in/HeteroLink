@@ -24,6 +24,7 @@ set(TEST_SOURCES
     test_mqttchannel.cpp
     test_devicemanager.cpp
     test_alarmsystem.cpp
+    test_configmanager.cpp
 )
 
 # =============================================================================
