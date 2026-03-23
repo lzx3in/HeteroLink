@@ -49,6 +49,10 @@ int main(int argc, char *argv[])
                                      "启用详细日志输出");
     parser.addOption(verboseOption);
     
+    QCommandLineOption jsonLogOption(QStringList() << "json-logs",
+                                     "使用 JSON 格式输出日志");
+    parser.addOption(jsonLogOption);
+    
     QCommandLineOption autoConnectOption(QStringList() << "auto-connect",
                                          "启动时自动连接设备");
     parser.addOption(autoConnectOption);
@@ -65,6 +69,13 @@ int main(int argc, char *argv[])
     if (parser.isSet(verboseOption)) {
         HeteroLink::Logger::setVerbose(true);
         LOG_DEBUG("Verbose logging enabled");
+    }
+    
+    if (parser.isSet(jsonLogOption)) {
+        HeteroLink::Logger::setJsonFormat(true);
+        // JSON 模式下立即输出一条启动日志（JSON 格式）
+        std::cout << "{\"timestamp\":\"" << QDateTime::currentDateTime().toString(Qt::ISODate).toStdString() 
+                  << "\",\"level\":\"INFO\",\"message\":\"JSON logging enabled\"}" << std::endl;
     }
     
     try {

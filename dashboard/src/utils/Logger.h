@@ -36,6 +36,12 @@ public:
     static void setVerbose(bool verbose);
     
     /**
+     * @brief 设置 JSON 格式输出
+     * @param jsonFormat true 启用 JSON 格式日志
+     */
+    static void setJsonFormat(bool jsonFormat);
+    
+    /**
      * @brief 记录日志
      * @param level 日志级别
      * @param message 日志消息
@@ -68,13 +74,17 @@ public:
 private:
     static std::unique_ptr<Logger> instance_;
     bool verbose_;
+    bool jsonFormat_;
     std::string logFile_;
     
     Logger();
     
     std::string formatMessage(Level level, const std::string& message,
                              const char* file, int line);
+    std::string formatMessageJson(Level level, const std::string& message,
+                                  const char* file, int line);
     std::string levelToString(Level level);
+    std::string escapeJson(const std::string& str);
     
 public:
     ~Logger();  // 需要公有以便 unique_ptr 删除

@@ -17,9 +17,17 @@ namespace HeteroLink {
 
 std::unique_ptr<Logger> Logger::instance_ = nullptr;
 
-Logger::Logger() : verbose_(false) {}
+Logger::Logger() : verbose_(false), jsonFormat_(false) {}
 
 Logger::~Logger() {}
+
+void Logger::setJsonFormat(bool jsonFormat)
+{
+    if (!instance_) {
+        instance_ = std::unique_ptr<Logger>(new Logger());
+    }
+    instance_->jsonFormat_ = jsonFormat;
+}
 
 void Logger::installQtMessageHandler()
 {
@@ -151,6 +159,10 @@ void Logger::log(Level level, const char* message,
 std::string Logger::formatMessage(Level level, const std::string& message,
                                  const char* file, int line)
 {
+    if (jsonFormat_) {
+        return formatMessageJson(level, message, file, line);
+    }
+    
     // 获取当前时间
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
@@ -175,6 +187,62 @@ std::string Logger::formatMessage(Level level, const std::string& message,
     
     ss << message;
     return ss.str();
+}
+
+std::string Logger::formatMessageJson(Level level, const std::string& message,
+                                      const char* file, int line)
+{
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()) % 1000;
+    
+    // 提取文件名
+    std::string filename = file ? file : "";
+    size_t pos = filename.find_last_of("/\\");
+    if (pos != std::string::npos) {
+        filename = filename.substr(pos + 1);
+    }
+    
+    std::stringstream ss;
+    ss << "{";
+    ss << "\"timestamp\":\"" << std::put_time(std::localtime(&time), "%Y-%m-%dT%H:%M:%S");
+    ss << '.' << std::setfill('0') << std::setw(3) << ms.count() << "Z\",";
+    ss << "\"level\":\"" << levelToString(level) << "\",";
+    ss << "\"message\":\"" << escapeJson(message) << "\"";
+    if (!filename.empty()) {
+        ss << ",\"file\":\"" << escapeJson(filename) << "\",";
+        ss << "\"line\":" << line;
+    }
+    ss << "}";
+    return ss.str();
+}
+
+std::string Logger::escapeJson(const std::string& str)
+{
+    std::string result;
+    result.reserve(str.size() + 10);
+    for (char c : str) {
+        switch (c) {
+            case '"':  result += "\\\""; break;
+            case '\\': result += "\\\\"; break;
+            case '\b': result += "\\b"; break;
+            case '\f': result += "\\f"; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    // 控制字符，使用 Unicode 转义
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned char>(c));
+                    result += buf;
+                } else {
+                    result += c;
+                }
+        }
+    }
+    return result;
 }
 
 std::string Logger::levelToString(Level level)
