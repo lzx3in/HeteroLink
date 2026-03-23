@@ -19,6 +19,7 @@ set(TEST_SOURCES
     test_protocol.cpp
     test_dataprocessor.cpp
     test_helpers.cpp
+    test_gui_scaffold.cpp
 )
 
 # =============================================================================
@@ -75,6 +76,13 @@ foreach(test_src ${TEST_SOURCES})
         Qt6::Test
         Qt6::SerialPort
     )
+    
+    # GUI 测试需要额外链接 Widgets
+    if(test_name STREQUAL "test_gui_scaffold")
+        target_link_libraries(${test_name} PRIVATE
+            Qt6::Widgets
+        )
+    endif()
     
     # 如果支持 MQTT，也链接
     if(HAS_QT_MQTT)
