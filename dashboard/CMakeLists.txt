@@ -9,10 +9,16 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # 使用 vcpkg 提供的 Qt6 和 MQTT
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort Mqtt Charts)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort Charts)
+find_package(Qt6 COMPONENTS Mqtt)
 set(QT_VERSION_MAJOR 6)
-set(HAS_QT_MQTT TRUE)
 set(HAS_QT_CHARTS TRUE)
+if(Qt6Mqtt_FOUND)
+    set(HAS_QT_MQTT TRUE)
+else()
+    set(HAS_QT_MQTT FALSE)
+    message(WARNING "Qt6Mqtt not found, MQTT support will be disabled")
+endif()
 
 # 源文件
 set(SOURCES
@@ -75,9 +81,12 @@ target_link_libraries(heterolink-host PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::SerialPort
-    Qt6::Mqtt
     Qt6::Charts
 )
+if(HAS_QT_MQTT)
+    target_link_libraries(heterolink-host PRIVATE Qt6::Mqtt)
+    target_compile_definitions(heterolink-host PRIVATE HAS_QT_MQTT=1)
+endif()
 
 # 包含目录
 target_include_directories(heterolink-host PRIVATE
@@ -118,4 +127,8 @@ endif()
 # 测试
 enable_testing()
 add_subdirectory(tests)
-add_subdirectory(examples)
+if(HAS_QT_MQTT)
+    add_subdirectory(examples)
+else()
+    message(STATUS "Skipping examples (requires Qt6Mqtt)")
+endif()

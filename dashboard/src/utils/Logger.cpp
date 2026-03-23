@@ -11,6 +11,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <QByteArray>
 
 namespace HeteroLink {
 
@@ -19,6 +20,71 @@ std::unique_ptr<Logger> Logger::instance_ = nullptr;
 Logger::Logger() : verbose_(false) {}
 
 Logger::~Logger() {}
+
+void Logger::installQtMessageHandler()
+{
+    qInstallMessageHandler([](QtMsgType type, 
+                               const QMessageLogContext& context, 
+                               const QString& message) {
+        Logger::qtMessageHandler(type, context, message);
+    });
+    LOG_INFO("Qt message handler installed");
+}
+
+void Logger::qtMessageHandler(QtMsgType type, 
+                              const QMessageLogContext& context, 
+                              const QString& message)
+{
+    // 将 Qt 消息类型映射到 Logger 级别
+    Level level = Level::INFO;
+    switch (type) {
+        case QtDebugMsg:
+            level = Level::DEBUG;
+            break;
+        case QtInfoMsg:
+            level = Level::INFO;
+            break;
+        case QtWarningMsg:
+            level = Level::WARNING;
+            break;
+        case QtCriticalMsg:
+        case QtFatalMsg:
+            level = Level::ERROR;
+            break;
+    }
+    
+    // 格式化消息，包含 Qt 上下文信息
+    QString formattedMessage = message;
+    if (context.file && !QString(context.file).isEmpty()) {
+        // 提取文件名
+        QString file = QString(context.file);
+        int idx = file.lastIndexOf('/');
+        if (idx == -1) {
+            idx = file.lastIndexOf('\\');
+        }
+        if (idx != -1) {
+            file = file.mid(idx + 1);
+        }
+        formattedMessage = QString("[%1:%2] %3").arg(file).arg(context.line).arg(message);
+    }
+    
+    // 添加 Qt 前缀标识
+    QString qtPrefix;
+    switch (type) {
+        case QtDebugMsg:   qtPrefix = "[Qt] "; break;
+        case QtInfoMsg:    qtPrefix = "[Qt] "; break;
+        case QtWarningMsg: qtPrefix = "[Qt-WARN] "; break;
+        case QtCriticalMsg: qtPrefix = "[Qt-CRIT] "; break;
+        case QtFatalMsg:   qtPrefix = "[Qt-FATAL] "; break;
+    }
+    
+    log(level, qtPrefix + formattedMessage, context.file, context.line);
+    
+    // 致命错误时终止程序
+    if (type == QtFatalMsg) {
+        std::abort();
+    }
+}
 
 void Logger::init(const std::string& logFile)
 {

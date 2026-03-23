@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
     
     // 初始化日志系统
     HeteroLink::Logger::init();
+    HeteroLink::Logger::installQtMessageHandler();
     
     LOG_INFO("HeteroLink Host starting...");
     

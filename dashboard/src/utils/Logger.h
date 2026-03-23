@@ -10,6 +10,7 @@
 #include <string>
 #include <memory>
 #include <QString>
+#include <QtGlobal>
 
 namespace HeteroLink {
 
@@ -47,6 +48,22 @@ public:
                    const char* file, int line);
     static void log(Level level, const char* message, 
                    const char* file, int line);
+    
+    /**
+     * @brief 安装 Qt 内部日志处理器
+     * @brief 捕获 Qt 框架的警告、错误、调试信息
+     */
+    static void installQtMessageHandler();
+    
+    /**
+     * @brief Qt 消息处理器回调（静态）
+     * @param type Qt 消息类型
+     * @param context 消息上下文
+     * @param message 消息内容
+     */
+    static void qtMessageHandler(QtMsgType type, 
+                                 const QMessageLogContext& context, 
+                                 const QString& message);
     
 private:
     static std::unique_ptr<Logger> instance_;
