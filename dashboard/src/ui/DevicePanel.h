@@ -72,11 +72,15 @@ signals:
 private slots:
     void onDevicesChanged(const QMap<QString, DeviceInfo>& devices);
     void onDeviceStatusChanged(const QString& deviceId, bool connected, bool online);
+    void onDeviceSelectionChanged();
     void onConnectClicked();
     void onDisconnectClicked();
     void onAddDeviceClicked();
     void onRemoveDeviceClicked();
     void onPortSelected(int index);
+    
+private:
+    void selectPort(const QString& portName);
     
 private:
     QListWidget *deviceList_;

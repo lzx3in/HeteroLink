@@ -56,6 +56,19 @@ bool DeviceManager::addDevice(const DeviceInfo& deviceInfo)
     return true;
 }
 
+bool DeviceManager::updateDevice(const DeviceInfo& deviceInfo)
+{
+    if (!devices_.contains(deviceInfo.id)) {
+        LOG_WARNING("Device not found: " + deviceInfo.id.toStdString());
+        return false;
+    }
+    
+    devices_[deviceInfo.id] = deviceInfo;
+    LOG_INFO("Device updated: " + deviceInfo.id.toStdString());
+    emit devicesChanged(devices_);
+    return true;
+}
+
 bool DeviceManager::removeDevice(const QString& deviceId)
 {
     if (!devices_.contains(deviceId)) {

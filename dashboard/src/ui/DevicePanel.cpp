@@ -3,7 +3,9 @@
  */
 
 #include "DevicePanel.h"
+#include "ui/AddDeviceDialog.h"
 #include "core/DeviceManager.h"
+#include "protocol/UartChannel.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -11,6 +13,7 @@
 #include <QListWidget>
 #include <QLabel>
 #include <QGroupBox>
+#include <QMessageBox>
 
 namespace HeteroLink {
 
@@ -124,6 +127,8 @@ void DevicePanel::setupUI()
     layout->addStretch();
     
     // 连接信号
+    connect(deviceList_, &QListWidget::currentItemChanged,
+            this, &DevicePanel::onDeviceSelectionChanged);
     connect(connectBtn_, &QPushButton::clicked, this, &DevicePanel::onConnectClicked);
     connect(disconnectBtn_, &QPushButton::clicked, this, &DevicePanel::onDisconnectClicked);
     connect(addBtn_, &QPushButton::clicked, this, &DevicePanel::onAddDeviceClicked);
@@ -170,12 +175,39 @@ void DevicePanel::onDeviceStatusChanged(const QString& deviceId, bool connected,
     refreshDevices();
 }
 
+void DevicePanel::onDeviceSelectionChanged()
+{
+    // 当设备选中时，自动同步串口下拉框到该设备保存的串口
+    if (deviceList_->currentItem()) {
+        QString deviceId = deviceList_->currentItem()->data(Qt::UserRole).toString();
+        if (devices_.contains(deviceId) && !devices_[deviceId].port.isEmpty()) {
+            selectPort(devices_[deviceId].port);
+        }
+    }
+}
+
+void DevicePanel::selectPort(const QString& portName)
+{
+    for (int i = 0; i < portCombo_->count(); ++i) {
+        if (portCombo_->itemData(i).toString() == portName) {
+            portCombo_->setCurrentIndex(i);
+            return;
+        }
+    }
+}
+
 void DevicePanel::onConnectClicked()
 {
     if (deviceList_->currentItem() && portCombo_->currentIndex() >= 0) {
         QString deviceId = deviceList_->currentItem()->data(Qt::UserRole).toString();
-        // 使用 currentData 获取存储的实际端口名称（而不是显示文本）
         QString portName = portCombo_->currentData(Qt::UserRole).toString();
+        
+        // 更新设备保存的串口（允许用户切换）
+        if (devices_.contains(deviceId)) {
+            devices_[deviceId].port = portName;
+            deviceManager_->updateDevice(devices_[deviceId]);
+        }
+        
         emit requestConnect(deviceId, portName);
     }
 }
@@ -190,7 +222,35 @@ void DevicePanel::onDisconnectClicked()
 
 void DevicePanel::onAddDeviceClicked()
 {
-    // TODO: 打开添加设备对话框
+    if (!deviceManager_) {
+        QMessageBox::warning(this, "错误", "设备管理器未初始化");
+        return;
+    }
+    
+    AddDeviceDialog dialog(deviceManager_, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        // 创建设备信息
+        DeviceInfo info;
+        info.id = dialog.deviceId();
+        info.name = dialog.deviceName();
+        info.connectionType = "UART";
+        info.port = dialog.portName();
+        info.baudRate = dialog.baudRate();
+        info.connected = false;
+        info.online = false;
+        info.lastSeen = 0;
+        
+        // 添加设备
+        if (deviceManager_->addDevice(info)) {
+            // 添加成功后，自动选中该设备并更新串口选择
+            refreshDevices();
+            // 刷新串口列表并选中设备保存的串口
+            refreshPorts();
+            selectPort(info.port);
+        } else {
+            QMessageBox::warning(this, "添加失败", "设备 ID 已存在");
+        }
+    }
 }
 
 void DevicePanel::onRemoveDeviceClicked()

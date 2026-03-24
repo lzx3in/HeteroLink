@@ -28,6 +28,7 @@ struct DeviceInfo {
     bool online = false;  // MQTT 在线状态
     QString connectionType;  // "UART" 或 "MQTT"
     QString port;  // 串口号（UART 模式）
+    int baudRate = 921600;  // 波特率（UART 模式）
     quint64 lastSeen = 0;  // 最后通信时间戳
     QVariantMap metadata;  // 设备元数据
     
@@ -66,6 +67,13 @@ public:
      * @return 是否成功
      */
     bool addDevice(const DeviceInfo& deviceInfo);
+    
+    /**
+     * @brief 更新设备信息
+     * @param deviceInfo 设备信息
+     * @return 是否成功
+     */
+    bool updateDevice(const DeviceInfo& deviceInfo);
     
     /**
      * @brief 移除设备
