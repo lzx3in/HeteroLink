@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QSystemTrayIcon>
 #include <QDockWidget>
+#include <QDialog>
 
 namespace HeteroLink {
 
@@ -227,8 +228,39 @@ void MainWindow::on_actionExport_triggered()
 
 void MainWindow::on_actionSettings_triggered()
 {
-    configPanel_->loadConfig();
-    // TODO: 显示配置对话框
+    // 创建配置对话框
+    QDialog settingsDialog(this);
+    settingsDialog.setWindowTitle("设置");
+    settingsDialog.setMinimumSize(600, 500);
+    
+    auto layout = new QVBoxLayout(&settingsDialog);
+    
+    // 创建配置面板实例
+    auto settingsPanel = new ConfigPanel(&settingsDialog);
+    settingsPanel->setAlarmSystem(application_->alarmSystem());
+    settingsPanel->setConfigManager(application_->configManager());
+    
+    layout->addWidget(settingsPanel);
+    
+    // 添加按钮
+    auto btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    
+    auto okBtn = new QPushButton("确定");
+    okBtn->setDefault(true);
+    btnLayout->addWidget(okBtn);
+    
+    auto cancelBtn = new QPushButton("取消");
+    btnLayout->addWidget(cancelBtn);
+    
+    layout->addLayout(btnLayout);
+    
+    // 连接信号
+    connect(okBtn, &QPushButton::clicked, &settingsDialog, &QDialog::accept);
+    connect(cancelBtn, &QPushButton::clicked, &settingsDialog, &QDialog::reject);
+    
+    // 显示对话框
+    settingsDialog.exec();
 }
 
 void MainWindow::on_actionAbout_triggered()
