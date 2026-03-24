@@ -11,6 +11,7 @@
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QDateTime>
+#include <QThread>
 
 #include "storage/DataLogger.h"
 #include "protocol/Protocol.h"
@@ -89,11 +90,12 @@ private slots:
     void testStartRecording_InvalidPath_Fails() {
         DataLogger logger;
         
-        // 空路径会尝试创建目录，可能成功（取决于系统）
-        // 这里只验证不崩溃
+        // 空路径会尝试在当前目录创建文件
+        // 验证不会崩溃，行为一致即可
         bool result = logger.startRecording("", "device_001");
         
-        // 结果取决于系统，主要验证不崩溃
+        // 结果取决于系统和权限，主要验证不崩溃
+        // 在 Windows 上可能成功（创建到当前工作目录）
         QVERIFY(result == true || result == false);
     }
     
@@ -151,11 +153,14 @@ private slots:
         
         logger.writeData("device_001", data);
         
+        // 保存文件路径（stopRecording 后 currentFilePath 会返回空）
+        QString filePath = logger.currentFilePath();
+        
         // 停止记录以刷新缓冲区
         logger.stopRecording();
         
         // 验证文件内容
-        QFile file(logger.currentFilePath());
+        QFile file(filePath);
         QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
         QString content = file.readAll();
         file.close();
@@ -191,10 +196,11 @@ private slots:
             logger.writeData("device_001", data);
         }
         
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
         // 验证文件内容
-        QFile file(logger.currentFilePath());
+        QFile file(filePath);
         QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
         QString content = file.readAll();
         file.close();
@@ -212,17 +218,20 @@ private slots:
         data.channels = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
         
         logger.writeData("device_001", data);
+        
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
-        QFile file(logger.currentFilePath());
+        QFile file(filePath);
         QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
         QString content = file.readAll();
         file.close();
         
         // 验证 header 包含 5 个通道
+        // 实际 header 格式：timestamp,ch0,ch1,ch2,...
         QStringList lines = content.split('\n', Qt::SkipEmptyParts);
-        QVERIFY(lines[0].contains("channel0"));
-        QVERIFY(lines[0].contains("channel4"));
+        QVERIFY(lines[0].contains("ch0"));
+        QVERIFY(lines[0].contains("ch4"));
     }
     
     // ========== 文件大小限制测试 ==========
@@ -267,10 +276,12 @@ private slots:
         data.channels = {};  // 空通道
         
         logger.writeData("device_001", data);  // 不应崩溃
+        
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
         // 验证文件存在
-        QVERIFY(QFile::exists(logger.currentFilePath()));
+        QVERIFY(QFile::exists(filePath));
     }
     
     void testBoundary_LargeTimestamp() {
@@ -282,9 +293,11 @@ private slots:
         data.channels = {1.0f};
         
         logger.writeData("device_001", data);  // 不应崩溃
+        
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
-        QVERIFY(QFile::exists(logger.currentFilePath()));
+        QVERIFY(QFile::exists(filePath));
     }
     
     void testBoundary_NegativeChannelValues() {
@@ -296,10 +309,12 @@ private slots:
         data.channels = {-100.5f, -200.5f, -300.5f};
         
         logger.writeData("device_001", data);
+        
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
         // 验证文件内容包含负值
-        QFile file(logger.currentFilePath());
+        QFile file(filePath);
         QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
         QString content = file.readAll();
         file.close();
@@ -316,9 +331,11 @@ private slots:
         data.channels = {1e10f, 1e20f, 1e30f};
         
         logger.writeData("device_001", data);  // 不应崩溃
+        
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
-        QVERIFY(QFile::exists(logger.currentFilePath()));
+        QVERIFY(QFile::exists(filePath));
     }
     
     void testBoundary_ManyChannels() {
@@ -333,9 +350,11 @@ private slots:
         }
         
         logger.writeData("device_001", data);
+        
+        QString filePath = logger.currentFilePath();
         logger.stopRecording();
         
-        QVERIFY(QFile::exists(logger.currentFilePath()));
+        QVERIFY(QFile::exists(filePath));
     }
     
     // ========== 文件路径生成测试 ==========
@@ -357,8 +376,10 @@ private slots:
         
         QString path = logger.currentFilePath();
         
-        // 路径应包含时间戳（日期）
-        QVERIFY(path.contains(QDate::currentDate().toString("yyyy-MM-dd")));
+        // 路径应包含当天日期
+        // 实际生成格式：yyyyMMdd_HHmmss (如 20260323_234301)
+        // 测试只验证日期部分，避免对具体时间戳格式过度敏感
+        QVERIFY(path.contains(QDate::currentDate().toString("yyyyMMdd")));
         
         logger.stopRecording();
     }
@@ -400,6 +421,10 @@ private slots:
         
         // 停止后重新开始同一设备
         logger.stopRecording();
+        
+        // 等待 1.1 秒确保时间戳不同
+        QThread::msleep(1100);
+        
         logger.startRecording(testDir_, "device_001");
         QString secondPath = logger.currentFilePath();
         
