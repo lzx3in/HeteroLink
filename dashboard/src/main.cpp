@@ -98,6 +98,12 @@ int main(int argc, char *argv[])
         // 创建应用主类
         HeteroLink::Application application(configFile);
         
+        // 初始化应用（创建核心模块）
+        if (!application.initialize()) {
+            LOG_ERROR("Failed to initialize application");
+            return -1;
+        }
+        
         // 创建并显示主窗口
         HeteroLink::MainWindow mainWindow(&application);
         mainWindow.show();

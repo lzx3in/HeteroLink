@@ -50,7 +50,18 @@ void DevicePanel::refreshPorts()
     if (deviceManager_) {
         auto ports = deviceManager_->getAvailablePorts();
         for (const auto& port : ports) {
-            portCombo_->addItem(port.portName());
+            // 格式：COM3 - USB Serial Device (FTDI)
+            QString displayText = port.portName();
+            
+            if (!port.description().isEmpty()) {
+                displayText += " - " + port.description();
+            }
+            
+            if (!port.manufacturer().isEmpty()) {
+                displayText += " (" + port.manufacturer() + ")";
+            }
+            
+            portCombo_->addItem(displayText, port.portName());
         }
     }
 }
@@ -161,9 +172,10 @@ void DevicePanel::onDeviceStatusChanged(const QString& deviceId, bool connected,
 
 void DevicePanel::onConnectClicked()
 {
-    if (deviceList_->currentItem() && !portCombo_->currentText().isEmpty()) {
+    if (deviceList_->currentItem() && portCombo_->currentIndex() >= 0) {
         QString deviceId = deviceList_->currentItem()->data(Qt::UserRole).toString();
-        QString portName = portCombo_->currentText();
+        // 使用 currentData 获取存储的实际端口名称（而不是显示文本）
+        QString portName = portCombo_->currentData(Qt::UserRole).toString();
         emit requestConnect(deviceId, portName);
     }
 }

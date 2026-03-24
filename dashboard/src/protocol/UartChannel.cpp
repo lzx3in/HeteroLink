@@ -5,6 +5,7 @@
 #include "protocol/UartChannel.h"
 #include "protocol/Protocol.h"
 #include "utils/Logger.h"
+#include <QThread>
 
 namespace HeteroLink {
 
@@ -23,10 +24,19 @@ UartChannel::~UartChannel()
 QVector<QSerialPortInfo> UartChannel::availablePorts()
 {
     QVector<QSerialPortInfo> ports;
+    
+    // 强制刷新串口列表（Windows 上有时需要）
+    QSerialPortInfo::availablePorts();
+    QThread::msleep(50);  // 给系统一点时间枚举
+    
     const auto infos = QSerialPortInfo::availablePorts();
+    LOG_INFO("Found " + QString::number(infos.size()) + " serial ports");
+    
     for (const QSerialPortInfo& info : infos) {
+        LOG_DEBUG("  - " + info.portName() + ": " + info.description());
         ports.append(info);
     }
+    
     return ports;
 }
 

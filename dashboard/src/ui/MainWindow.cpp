@@ -45,6 +45,7 @@ void MainWindow::setupUI()
     // 创建设备面板
     devicePanel_ = new DevicePanel(this);
     devicePanel_->setMaximumWidth(300);
+    devicePanel_->setDeviceManager(application_->deviceManager());
     
     // 创建数据可视化组件
     dataWidget_ = new DataWidget(this);
@@ -122,6 +123,9 @@ void MainWindow::setupConnections()
         config.baudRate = 921600;
         application_->deviceManager()->connectDevice(deviceId, config);
     });
+    
+    // 初始化时刷新串口列表
+    devicePanel_->refreshPorts();
     
     connect(devicePanel_, &DevicePanel::requestDisconnect,
             this, [this](const QString& deviceId) {
