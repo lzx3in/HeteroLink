@@ -11,6 +11,8 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QMessageBox>
+#include <QRadioButton>
+#include <QButtonGroup>
 
 namespace HeteroLink {
 
@@ -20,7 +22,7 @@ AddDeviceDialog::AddDeviceDialog(DeviceManager* manager, QWidget *parent)
 {
     setWindowTitle("添加设备");
     setModal(true);
-    resize(400, 300);
+    resize(450, 400);
     
     setupUI();
     loadPorts();
@@ -50,21 +52,59 @@ void AddDeviceDialog::setupUI()
     
     layout->addWidget(infoGroup);
     
-    // 串口配置
-    auto portGroup = new QGroupBox("串口配置");
-    auto portLayout = new QFormLayout(portGroup);
+    // 连接类型
+    auto connGroup = new QGroupBox("连接方式");
+    auto connLayout = new QVBoxLayout(connGroup);
+    
+    connectionTypeCombo_ = new QComboBox();
+    connectionTypeCombo_->addItem("串口 (UART)", "UART");
+    connectionTypeCombo_->addItem("MQTT", "MQTT");
+    connLayout->addWidget(connectionTypeCombo_);
+    
+    connect(connectionTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+        configStack_->setCurrentIndex(index);
+    });
+    
+    // 配置堆叠
+    configStack_ = new QStackedWidget();
+    
+    // UART 配置页面
+    auto uartPage = new QWidget();
+    auto uartLayout = new QFormLayout(uartPage);
     
     portCombo_ = new QComboBox();
     portCombo_->setEditable(false);
-    portLayout->addRow("串口:", portCombo_);
+    uartLayout->addRow("串口:", portCombo_);
     
     baudRateSpin_ = new QSpinBox();
     baudRateSpin_->setRange(1200, 921600);
     baudRateSpin_->setValue(921600);
     baudRateSpin_->setToolTip("波特率");
-    portLayout->addRow("波特率:", baudRateSpin_);
+    uartLayout->addRow("波特率:", baudRateSpin_);
     
-    layout->addWidget(portGroup);
+    configStack_->addWidget(uartPage);
+    
+    // MQTT 配置页面
+    auto mqttPage = new QWidget();
+    auto mqttLayout = new QFormLayout(mqttPage);
+    
+    brokerHostEdit_ = new QLineEdit();
+    brokerHostEdit_->setPlaceholderText("例如：192.168.1.100 或 broker.emqx.io");
+    brokerHostEdit_->setText("broker.emqx.io");  // 默认使用 HeteroLink 公共 Broker
+    brokerHostEdit_->setToolTip("MQTT Broker 地址，默认使用 HeteroLink 公共 Broker (broker.emqx.io)");
+    mqttLayout->addRow("Broker 地址:", brokerHostEdit_);
+    
+    brokerPortSpin_ = new QSpinBox();
+    brokerPortSpin_->setRange(1, 65535);
+    brokerPortSpin_->setValue(1883);
+    brokerPortSpin_->setToolTip("MQTT Broker 端口");
+    mqttLayout->addRow("Broker 端口:", brokerPortSpin_);
+    
+    configStack_->addWidget(mqttPage);
+    
+    connLayout->addWidget(configStack_);
+    layout->addWidget(connGroup);
     
     // 按钮
     auto btnLayout = new QHBoxLayout();
@@ -79,9 +119,16 @@ void AddDeviceDialog::setupUI()
             return;
         }
         
-        if (portCombo_->currentIndex() < 0) {
-            QMessageBox::warning(this, "输入错误", "请选择串口");
-            return;
+        if (connectionTypeCombo_->currentData().toString() == "UART") {
+            if (portCombo_->currentIndex() < 0) {
+                QMessageBox::warning(this, "输入错误", "请选择串口");
+                return;
+            }
+        } else {
+            if (brokerHostEdit_->text().isEmpty()) {
+                QMessageBox::warning(this, "输入错误", "请输入 Broker 地址");
+                return;
+            }
         }
         
         accept();
@@ -126,6 +173,11 @@ QString AddDeviceDialog::deviceName() const
     return name.isEmpty() ? ("Device " + deviceId()) : name;
 }
 
+QString AddDeviceDialog::connectionType() const
+{
+    return connectionTypeCombo_->currentData().toString();
+}
+
 QString AddDeviceDialog::portName() const
 {
     return portCombo_->currentData(Qt::UserRole).toString();
@@ -134,6 +186,16 @@ QString AddDeviceDialog::portName() const
 int AddDeviceDialog::baudRate() const
 {
     return baudRateSpin_->value();
+}
+
+QString AddDeviceDialog::brokerHost() const
+{
+    return brokerHostEdit_->text();
+}
+
+int AddDeviceDialog::brokerPort() const
+{
+    return brokerPortSpin_->value();
 }
 
 } // namespace HeteroLink

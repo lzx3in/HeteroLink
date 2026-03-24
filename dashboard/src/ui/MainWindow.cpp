@@ -124,6 +124,11 @@ void MainWindow::setupConnections()
         application_->deviceManager()->connectDevice(deviceId, config);
     });
     
+    connect(devicePanel_, &DevicePanel::requestConnectMqtt,
+            this, [this](const QString& deviceId, const QString& brokerHost, int brokerPort) {
+        application_->deviceManager()->connectDeviceMqtt(deviceId, brokerHost, brokerPort);
+    });
+    
     // 初始化时刷新串口列表
     devicePanel_->refreshPorts();
     

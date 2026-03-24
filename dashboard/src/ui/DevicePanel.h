@@ -12,6 +12,7 @@
 #include <QMap>
 #include <QComboBox>
 #include <QPushButton>
+#include <QLabel>
 #include <memory>
 
 #include "core/DeviceManager.h"
@@ -57,11 +58,19 @@ public:
     
 signals:
     /**
-     * @brief 请求连接设备
+     * @brief 请求连接设备（UART）
      * @param deviceId 设备 ID
      * @param portName 串口号
      */
     void requestConnect(const QString& deviceId, const QString& portName);
+    
+    /**
+     * @brief 请求连接设备（MQTT）
+     * @param deviceId 设备 ID
+     * @param brokerHost Broker 地址
+     * @param brokerPort Broker 端口
+     */
+    void requestConnectMqtt(const QString& deviceId, const QString& brokerHost, int brokerPort);
     
     /**
      * @brief 请求断开设备
@@ -81,8 +90,8 @@ private slots:
     
 private:
     void selectPort(const QString& portName);
+    void updateConnectionConfig();
     
-private:
     QListWidget *deviceList_;
     QComboBox *portCombo_;
     QPushButton *connectBtn_;
@@ -90,6 +99,10 @@ private:
     QPushButton *addBtn_;
     QPushButton *removeBtn_;
     QPushButton *refreshBtn_;
+    QLabel *typeLabel_;
+    QWidget *uartWidget_;
+    QWidget *mqttWidget_;
+    QLabel *mqttInfoLabel_;
     
     DeviceManager* deviceManager_ = nullptr;
     QMap<QString, DeviceInfo> devices_;
