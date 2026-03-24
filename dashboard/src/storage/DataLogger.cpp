@@ -152,6 +152,7 @@ void DataLogger::closeFile()
     }
     
     if (file_) {
+        file_->flush();  // 确保 QFile 缓冲区也写入磁盘
         file_->close();
         file_.reset();
     }
