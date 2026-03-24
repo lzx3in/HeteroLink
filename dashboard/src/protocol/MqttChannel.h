@@ -46,25 +46,25 @@ class MqttChannel : public QObject
     
 public:
     explicit MqttChannel(QObject *parent = nullptr);
-    ~MqttChannel();
+    virtual ~MqttChannel();
     
     /**
      * @brief 连接到 Broker
      * @param config 配置
      * @return 是否成功
      */
-    bool connect(const MqttConfig& config);
+    virtual bool connect(const MqttConfig& config);
     
     /**
      * @brief 断开连接
      */
-    void disconnect();
+    virtual void disconnect();
     
     /**
      * @brief 检查连接状态
      * @return 是否已连接
      */
-    bool isConnected() const;
+    virtual bool isConnected() const;
     
     /**
      * @brief 获取当前配置
@@ -77,13 +77,13 @@ public:
      * @param topic Topic 名称
      * @return 是否成功
      */
-    bool subscribe(const QString& topic);
+    virtual bool subscribe(const QString& topic);
     
     /**
      * @brief 取消订阅
      * @param topic Topic 名称
      */
-    void unsubscribe(const QString& topic);
+    virtual void unsubscribe(const QString& topic);
     
     /**
      * @brief 发布消息
@@ -93,7 +93,7 @@ public:
      * @param retain 是否保留
      * @return 是否成功
      */
-    bool publish(const QString& topic, const QByteArray& payload,
+    virtual bool publish(const QString& topic, const QByteArray& payload,
                 int qos = 1, bool retain = false);
     
     /**
@@ -101,37 +101,37 @@ public:
      * @param deviceId 设备 ID
      * @param online 是否在线
      */
-    void publishDeviceStatus(const QString& deviceId, bool online);
+    virtual void publishDeviceStatus(const QString& deviceId, bool online);
     
     /**
      * @brief 发布遥测数据
      * @param deviceId 设备 ID
      * @param data JSON 格式数据
      */
-    void publishTelemetry(const QString& deviceId, const QString& data);
+    virtual void publishTelemetry(const QString& deviceId, const QString& data);
     
     /**
      * @brief 发布命令到设备
      * @param deviceId 设备 ID
      * @param command 命令内容
      */
-    void publishCommand(const QString& deviceId, const QString& command);
+    virtual void publishCommand(const QString& deviceId, const QString& command);
     
     /**
      * @brief 订阅设备命令
      * @param deviceId 设备 ID
      */
-    void subscribeDeviceCommands(const QString& deviceId);
+    virtual void subscribeDeviceCommands(const QString& deviceId);
     
     /**
      * @brief 订阅所有设备状态
      */
-    void subscribeAllDeviceStatus();
+    virtual void subscribeAllDeviceStatus();
     
     /**
      * @brief 订阅所有设备遥测
      */
-    void subscribeAllDeviceTelemetry();
+    virtual void subscribeAllDeviceTelemetry();
     
 signals:
     /**

@@ -43,7 +43,7 @@ class UartChannel : public QObject
     
 public:
     explicit UartChannel(QObject *parent = nullptr);
-    ~UartChannel();
+    virtual ~UartChannel();
     
     /**
      * @brief 获取可用串口列表
@@ -56,31 +56,31 @@ public:
      * @param config 配置
      * @return 是否成功
      */
-    bool connect(const UartConfig& config);
+    virtual bool connect(const UartConfig& config);
     
     /**
      * @brief 断开连接
      */
-    void disconnect();
+    virtual void disconnect();
     
     /**
      * @brief 检查连接状态
      * @return 是否已连接
      */
-    bool isConnected() const;
+    virtual bool isConnected() const;
     
     /**
      * @brief 发送帧
      * @param frame 帧
      * @return 是否成功
      */
-    bool sendFrame(const Frame& frame);
+    virtual bool sendFrame(const Frame& frame);
     
     /**
      * @brief 发送心跳
      * @param deviceId 设备 ID
      */
-    void sendHeartbeat(uint8_t deviceId);
+    virtual void sendHeartbeat(uint8_t deviceId);
     
     /**
      * @brief 发送控制命令
@@ -88,14 +88,14 @@ public:
      * @param cmdType 命令类型
      * @param payload 命令参数
      */
-    void sendControlCommand(uint8_t deviceId, uint8_t cmdType,
+    virtual void sendControlCommand(uint8_t deviceId, uint8_t cmdType,
                            const std::vector<uint8_t>& payload);
     
     /**
      * @brief 设置设备 ID
      * @param deviceId 设备 ID
      */
-    void setDeviceId(uint8_t deviceId);
+    virtual void setDeviceId(uint8_t deviceId);
     
 signals:
     /**

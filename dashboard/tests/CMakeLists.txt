@@ -96,34 +96,11 @@ foreach(test_src ${TEST_SOURCES})
         Qt6::SerialPort
     )
     
-    # GUI 测试需要额外链接 Widgets
-    if(test_name STREQUAL "test_gui_scaffold")
-        target_link_libraries(${test_name} PRIVATE
-            Qt6::Widgets
-        )
-    endif()
-    
     # UART 测试需要额外链接 SerialPort
     if(test_name STREQUAL "test_uartchannel")
         target_link_libraries(${test_name} PRIVATE
             Qt6::SerialPort
         )
-    endif()
-    
-    # MQTT 测试在启用 MQTT 时需要链接 Mqtt
-    if(HAS_QT_MQTT)
-        if(test_name STREQUAL "test_mqttchannel" OR test_name STREQUAL "test_devicemanager")
-            target_link_libraries(${test_name} PRIVATE
-                Qt6::Mqtt
-            )
-            target_compile_definitions(${test_name} PRIVATE HAS_QT_MQTT=1)
-        endif()
-    endif()
-    
-    # 如果支持 MQTT，也链接
-    if(HAS_QT_MQTT)
-        target_link_libraries(${test_name} PRIVATE Qt6::Mqtt)
-        target_compile_definitions(${test_name} PRIVATE HAS_QT_MQTT=1)
     endif()
     
     # Mock 测试需要链接 Mock 库
@@ -134,6 +111,7 @@ foreach(test_src ${TEST_SOURCES})
     endif()
     
     # MQTT、DeviceManager 和 UART 测试需要链接 Mock 库
+    # 注意：这些测试使用 Mock，不需要 HAS_QT_MQTT 定义
     if(test_name STREQUAL "test_mqttchannel" OR test_name STREQUAL "test_devicemanager" OR test_name STREQUAL "test_uartchannel")
         target_link_libraries(${test_name} PRIVATE
             heterolink_mocks
