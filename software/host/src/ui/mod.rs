@@ -40,13 +40,28 @@ pub fn setup_callbacks(
                     let baud = baud_rates.get(baud_idx).copied().unwrap_or(9600);
                     add_log_message(&ui, &format!("连接 UART: {} @ {}", port, baud));
                     
-                    // TODO: 实际连接 UART 设备
-                    // let device_id = format!("uart_{}", port);
-                    // if let Err(e) = dm.lock().await.connect_device_uart(&device_id, &port, baud, tx).await {
-                    //     add_log_message(&ui, &format!("连接失败: {}", e));
-                    // } else {
-                    //     add_log_message(&ui, &format!("已连接: {}", device_id));
-                    // }
+                    let device_id = format!("uart_{}", port.replace("/dev/", ""));
+                    let config = crate::protocol::UartConfig {
+                        port_name: port.clone(),
+                        baud_rate: baud,
+                        data_bits: 8,
+                        stop_bits: 1,
+                        parity: 0,
+                    };
+                    
+                    // 先添加设备（如果不存在）
+                    let mut dm_lock = dm.lock().await;
+                    if dm_lock.get_device(&device_id).await.is_none() {
+                        let mut device = crate::core::DeviceInfo::new(device_id.clone(), format!("UART {}", port));
+                        device.port = port.clone();
+                        let _ = dm_lock.add_device(device).await;
+                    }
+                    
+                    // 连接 UART
+                    match dm_lock.connect_device_uart(&device_id, config, tx).await {
+                        Ok(_) => add_log_message(&ui, &format!("已连接: {}", device_id)),
+                        Err(e) => add_log_message(&ui, &format!("连接失败: {}", e)),
+                    }
                 }
             }).unwrap();
         });
