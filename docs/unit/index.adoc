@@ -6,7 +6,7 @@ ESP32 协处理器子板固件系统文档。
 === 核心文档
 * link:architecture.adoc[固件架构] - 系统设计、组件结构、数据流
 * link:configuration.adoc[配置指南] - menuconfig 选项、sdkconfig 配置
-* link:../dashboard/protocol-spec.adoc[协议规范] - UART 二进制协议、MQTT 协议
+* (文档已迁移至 software/host/) - UART 二进制协议、MQTT 协议
 
 === 快速开始
 * link:../../getting-started/quick-start.adoc[快速开始] - 5 分钟上手指南
@@ -15,7 +15,7 @@ ESP32 协处理器子板固件系统文档。
 * link:../../getting-started/troubleshooting.adoc[故障排查] - 常见问题解决
 
 === 组件文档
-* link:../dashboard/mqtt-guide.adoc[MQTT 使用指南] - MQTT 配置、Topic 规范、示例
+* (文档已迁移至 software/host/) - MQTT 配置、Topic 规范、示例
 * `components/spi_dma/` - SPI+DMA 驱动 API 文档
 * `components/uart_protocol/` - UART 协议栈 API 文档
 * `components/adc_gpio_probe/` - ADC/GPIO 探测 API 文档

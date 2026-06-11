@@ -291,8 +291,8 @@ I (3456) heterolink: Published status: online
 
 * link:../../../docs/unit/architecture.adoc[固件架构详解]
 * link:../../../docs/unit/configuration.adoc[配置指南]
-* link:../../../docs/dashboard/protocol-spec.md[协议规范]
-* link:../../../docs/dashboard/mqtt-guide.adoc[MQTT 使用指南]
+* (文档已迁移至 software/host/)
+* (文档已迁移至 software/host/)
 
 === 进阶功能
 

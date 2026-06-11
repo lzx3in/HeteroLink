@@ -113,7 +113,7 @@ mosquitto_pub -h broker.emqx.io \
 查看串口输出确认收到命令�?
 == 🎯 下一�?
 * 📖 阅读 link:../unit/architecture.adoc[固件架构文档]
-* 📡 查看 link:../dashboard/protocol-spec.adoc[协议规范]
+* 📡 查看 (文档已迁移至 software/host/)
 * 🔧 查看 link:../../examples/[示例项目]
 * 💬 加入 https://github.com/HeteroLink/HeteroLink/discussions[讨论区]
 * 📘 需要详细指南？查看 link:../unit/quick-start.adoc[固件快速开始（详细版）]
