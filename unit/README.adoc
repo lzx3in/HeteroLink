@@ -488,9 +488,9 @@ idf.py menuconfig
 * link:../../docs/getting-started/quick-start.adoc[快速开始（精简版）]
 
 === 软件文档
-* link:../../docs/dashboard/protocol-spec.adoc[协议规范]
-* link:../../docs/dashboard/mqtt-guide.adoc[MQTT 使用指南]
-* link:../../docs/dashboard/host-design.adoc[上位机设计]
+* (上位机文档已迁移至 software/host/)
+* (上位机文档已迁移至 software/host/)
+* (上位机文档已迁移至 software/host/)
 
 === 硬件文档
 * link:../../docs/hardware/[硬件设计]
