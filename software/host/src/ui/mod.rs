@@ -11,17 +11,341 @@ use tokio::sync::{mpsc, Mutex as TokioMutex};
 use slint::{ModelRc, VecModel, SharedString, Model};
 
 pub fn setup_callbacks(
-    _ui: &AppUI,
-    _device_manager: Arc<TokioMutex<DeviceManager>>,
-    _data_processor: Arc<DataProcessor>,
-    _alarm_system: Arc<AlarmSystem>,
-    _config_manager: Arc<TokioMutex<ConfigManager>>,
-    _data_logger: Arc<TokioMutex<DataLogger>>,
-    _mqtt_channel: Arc<TokioMutex<MqttChannel>>,
-    _device_event_tx: mpsc::Sender<DeviceEvent>,
-    _mqtt_event_tx: mpsc::Sender<MqttEvent>,
+    ui: &AppUI,
+    device_manager: Arc<TokioMutex<DeviceManager>>,
+    data_processor: Arc<DataProcessor>,
+    alarm_system: Arc<AlarmSystem>,
+    config_manager: Arc<TokioMutex<ConfigManager>>,
+    data_logger: Arc<TokioMutex<DataLogger>>,
+    mqtt_channel: Arc<TokioMutex<MqttChannel>>,
+    device_event_tx: mpsc::Sender<DeviceEvent>,
+    mqtt_event_tx: mpsc::Sender<MqttEvent>,
 ) {
-    // TODO: wire callbacks
+    // Connect UART
+    {
+        let ui_weak = ui.as_weak();
+        let dm = device_manager.clone();
+        let tx = device_event_tx.clone();
+        ui.on_connect_uart(move || {
+            let ui_weak = ui_weak.clone();
+            let dm = dm.clone();
+            let tx = tx.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let port_idx = ui.get_uart_port_index() as usize;
+                    let baud_idx = ui.get_uart_baud_index() as usize;
+                    let ports = ui.get_available_ports();
+                    let port = ports.iter().nth(port_idx).map(|s| s.to_string()).unwrap_or_default();
+                    let baud_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
+                    let baud = baud_rates.get(baud_idx).copied().unwrap_or(9600);
+                    add_log_message(&ui, &format!("连接 UART: {} @ {}", port, baud));
+                    
+                    // TODO: 实际连接 UART 设备
+                    // let device_id = format!("uart_{}", port);
+                    // if let Err(e) = dm.lock().await.connect_device_uart(&device_id, &port, baud, tx).await {
+                    //     add_log_message(&ui, &format!("连接失败: {}", e));
+                    // } else {
+                    //     add_log_message(&ui, &format!("已连接: {}", device_id));
+                    // }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Disconnect device
+    {
+        let ui_weak = ui.as_weak();
+        let dm = device_manager.clone();
+        ui.on_disconnect_device(move |idx| {
+            let ui_weak = ui_weak.clone();
+            let dm = dm.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let devices = dm.lock().await.get_devices().await;
+                    if let Some(device) = devices.values().nth(idx as usize) {
+                        let device_id = device.id.clone();
+                        if let Err(e) = dm.lock().await.disconnect_device(&device_id).await {
+                            add_log_message(&ui, &format!("断开失败: {}", e));
+                        } else {
+                            add_log_message(&ui, &format!("已断开: {}", device_id));
+                        }
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Connect MQTT
+    {
+        let ui_weak = ui.as_weak();
+        let mqtt = mqtt_channel.clone();
+        let tx = mqtt_event_tx.clone();
+        ui.on_connect_mqtt(move || {
+            let ui_weak = ui_weak.clone();
+            let mqtt = mqtt.clone();
+            let tx = tx.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    add_log_message(&ui, "正在连接 MQTT...");
+                    if let Err(e) = mqtt.lock().await.connect(tx).await {
+                        add_log_message(&ui, &format!("MQTT 连接失败: {}", e));
+                    } else {
+                        add_log_message(&ui, "MQTT 已连接");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Disconnect MQTT
+    {
+        let ui_weak = ui.as_weak();
+        let mqtt = mqtt_channel.clone();
+        ui.on_disconnect_mqtt(move || {
+            let ui_weak = ui_weak.clone();
+            let mqtt = mqtt.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    if let Err(e) = mqtt.lock().await.disconnect().await {
+                        add_log_message(&ui, &format!("MQTT 断开失败: {}", e));
+                    } else {
+                        add_log_message(&ui, "MQTT 已断开");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Start recording
+    {
+        let ui_weak = ui.as_weak();
+        let logger = data_logger.clone();
+        ui.on_start_recording(move || {
+            let ui_weak = ui_weak.clone();
+            let logger = logger.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    if let Err(e) = logger.lock().await.start_recording("./logs", "device_0") {
+                        add_log_message(&ui, &format!("开始记录失败: {}", e));
+                    } else {
+                        ui.set_recording(true);
+                        add_log_message(&ui, "开始记录数据");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Stop recording
+    {
+        let ui_weak = ui.as_weak();
+        let logger = data_logger.clone();
+        ui.on_stop_recording(move || {
+            let ui_weak = ui_weak.clone();
+            let logger = logger.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    logger.lock().await.stop_recording();
+                    ui.set_recording(false);
+                    add_log_message(&ui, "停止记录");
+                }
+            }).unwrap();
+        });
+    }
+
+    // Export CSV
+    {
+        let ui_weak = ui.as_weak();
+        let dp = data_processor.clone();
+        ui.on_export_csv(move || {
+            let ui_weak = ui_weak.clone();
+            let dp = dp.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let devices = ui.get_devices();
+                    if let Some(device) = devices.iter().next() {
+                        let device_id = device.id.to_string();
+                        let filename = format!("export_{}_{}.csv", device_id, chrono::Local::now().format("%Y%m%d_%H%M%S"));
+                        match dp.export_to_csv(&device_id, &filename).await {
+                            Ok(_) => add_log_message(&ui, &format!("已导出: {}", filename)),
+                            Err(e) => add_log_message(&ui, &format!("导出失败: {}", e)),
+                        }
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Export JSON
+    {
+        let ui_weak = ui.as_weak();
+        let dp = data_processor.clone();
+        ui.on_export_json(move || {
+            let ui_weak = ui_weak.clone();
+            let dp = dp.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let devices = ui.get_devices();
+                    if let Some(device) = devices.iter().next() {
+                        let device_id = device.id.to_string();
+                        let filename = format!("export_{}_{}.json", device_id, chrono::Local::now().format("%Y%m%d_%H%M%S"));
+                        match dp.export_to_json(&device_id, &filename).await {
+                            Ok(_) => add_log_message(&ui, &format!("已导出: {}", filename)),
+                            Err(e) => add_log_message(&ui, &format!("导出失败: {}", e)),
+                        }
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Save config
+    {
+        let ui_weak = ui.as_weak();
+        let cfg = config_manager.clone();
+        ui.on_save_config(move || {
+            let ui_weak = ui_weak.clone();
+            let cfg = cfg.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    if let Err(e) = cfg.lock().await.save(None) {
+                        add_log_message(&ui, &format!("保存配置失败: {}", e));
+                    } else {
+                        add_log_message(&ui, "配置已保存");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Load config
+    {
+        let ui_weak = ui.as_weak();
+        let cfg = config_manager.clone();
+        ui.on_load_config(move || {
+            let ui_weak = ui_weak.clone();
+            let cfg = cfg.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    if let Err(e) = cfg.lock().await.load(None) {
+                        add_log_message(&ui, &format!("加载配置失败: {}", e));
+                    } else {
+                        add_log_message(&ui, "配置已加载");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Reset config
+    {
+        let ui_weak = ui.as_weak();
+        let cfg = config_manager.clone();
+        ui.on_reset_config(move || {
+            let ui_weak = ui_weak.clone();
+            let cfg = cfg.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    cfg.lock().await.reset();
+                    add_log_message(&ui, "配置已重置");
+                }
+            }).unwrap();
+        });
+    }
+
+    // Acknowledge alarm
+    {
+        let ui_weak = ui.as_weak();
+        let alarms = alarm_system.clone();
+        ui.on_acknowledge_alarm(move |idx| {
+            let ui_weak = ui_weak.clone();
+            let alarms = alarms.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let records = alarms.get_all_alarm_records().await;
+                    if let Some(alarm) = records.get(idx as usize) {
+                        alarms.acknowledge_alarm(&alarm.device_id, alarm.channel_id).await;
+                        add_log_message(&ui, &format!("已确认告警: {} 通道 {}", alarm.device_id, alarm.channel_id));
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Clear alarms
+    {
+        let ui_weak = ui.as_weak();
+        let alarms = alarm_system.clone();
+        ui.on_clear_alarms(move || {
+            let ui_weak = ui_weak.clone();
+            let alarms = alarms.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    alarms.clear_records("device_0").await;
+                    add_log_message(&ui, "告警记录已清除");
+                }
+            }).unwrap();
+        });
+    }
+
+    // Add device
+    {
+        let ui_weak = ui.as_weak();
+        let dm = device_manager.clone();
+        ui.on_add_device(move |name| {
+            let ui_weak = ui_weak.clone();
+            let dm = dm.clone();
+            let name = name.to_string();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let device_id = format!("device_{}", chrono::Local::now().timestamp());
+                    let device = DeviceInfo::new(device_id.clone(), name.clone());
+                    if let Err(e) = dm.lock().await.add_device(device).await {
+                        add_log_message(&ui, &format!("添加设备失败: {}", e));
+                    } else {
+                        add_log_message(&ui, &format!("已添加设备: {} ({})", name, device_id));
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Remove device
+    {
+        let ui_weak = ui.as_weak();
+        let dm = device_manager.clone();
+        ui.on_remove_device(move |idx| {
+            let ui_weak = ui_weak.clone();
+            let dm = dm.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let devices = dm.lock().await.get_devices().await;
+                    if let Some(device) = devices.values().nth(idx as usize) {
+                        let device_id = device.id.clone();
+                        if let Err(e) = dm.lock().await.remove_device(&device_id).await {
+                            add_log_message(&ui, &format!("移除设备失败: {}", e));
+                        } else {
+                            add_log_message(&ui, &format!("已移除设备: {}", device_id));
+                        }
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Select device
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_select_device(move |idx| {
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.set_selected_device_index(idx);
+                let devices = ui.get_devices();
+                if let Some(device) = devices.iter().nth(idx as usize) {
+                    add_log_message(&ui, &format!("选中设备: {}", device.name));
+                }
+            }
+        });
+    }
 }
 
 pub fn update_device_list(ui: &AppUI, devices: &[DeviceInfo]) {

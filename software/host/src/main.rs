@@ -235,8 +235,27 @@ async fn main() -> Result<()> {
         }
     });
 
-    info!("Starting UI event loop");
-    ui.run()?;
+    info!("UI created, window reference: {:?}", ui.as_weak().upgrade().is_some());
+    
+    // Explicitly show the window
+    ui.show().map_err(|e| anyhow::anyhow!("Failed to show window: {}", e))?;
+    info!("Window shown");
+    
+    // Run the event loop
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| slint::run_event_loop())) {
+        Ok(Ok(())) => info!("Event loop exited normally"),
+        Ok(Err(e)) => {
+            error!("Event loop error: {}", e);
+            return Err(anyhow::anyhow!("Event loop error: {}", e));
+        }
+        Err(panic) => {
+            let msg = if let Some(s) = panic.downcast_ref::<&str>() { s.to_string() }
+                      else if let Some(s) = panic.downcast_ref::<String>() { s.clone() }
+                      else { "unknown panic".to_string() };
+            error!("Event loop panicked: {}", msg);
+            return Err(anyhow::anyhow!("Event loop panic: {}", msg));
+        }
+    }
 
     info!("HeteroLink Host exiting");
     Ok(())
