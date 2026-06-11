@@ -31,3 +31,28 @@ releases/*.zip
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ==============================================================================
+# Build Artifacts
+# ==============================================================================
+firmware/esp32/**/build/
+firmware/**/managed_components/
+software/host/build/
+software/host-slint/target/
+
+# ==============================================================================
+# Submodules / 3rdparty (managed separately)
+# ==============================================================================
+3rdparty/
+
+# ==============================================================================
+# ESP-IDF output
+# ==============================================================================
+*.elf
+*.map
+*.bin
+bootloader/
+partition_table/
+sdkconfig
+sdkconfig.old
+flasher_args.json

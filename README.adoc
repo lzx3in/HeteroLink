@@ -172,3 +172,108 @@ link:docs/README.adoc[📖 Docs]
 
 [center]
 📦 *v0.1.0* - 2026-03-21 - link:CHANGELOG.adoc[查看变更日志]
+
+
+[plantuml]
+----
+digraph G {
+    // 全局设置：从上到下布局，字体设置
+    rankdir=TB;
+    node [fontname="Arial", fontsize=12];
+    edge [fontname="Arial", fontsize=10];
+    splines=ortho; // 使用直角连线，更整洁
+
+    // --- 样式定义 ---
+    // 输入节点
+    node [shape=cylinder, style=filled, fillcolor="#e1f5fe", color="#01579b"] Input;
+    // 控制节点 (PI等)
+    node [shape=box, style=filled, fillcolor="#bbf", color="#333"] Control;
+    // 变换节点 (Park/Clarke)
+    node [shape=diamond, style=filled, fillcolor="#bfb", color="#333"] Transform;
+    // PWM/逆变器
+    node [shape=box, style=filled, fillcolor="#fbb", color="#333"] PWM;
+    // 硬件/电机
+    node [shape=circle, style=filled, fillcolor="#eee", color="#333"] Hardware;
+    // 估算值 (虚线框)
+    node [shape=box, style="filled,dashed", fillcolor="#ffcc80", color="#e65100"] Estimated;
+
+    // --- 节点定义 ---
+
+    // 1. 输入层
+    Speed_Ref [label="参考速度\nSpeed_Ref", group=input];
+    Id_Ref [label="Id参考\nId_Ref=0", group=input];
+
+    // 2. 速度环
+    PI_Speed [label="PI控制器\n速度环", group=control];
+
+    // 3. 电流环与变换
+    // 注意：这里明确了Park和InvPark是不同的节点
+    PI_D [label="PI控制器\nId环", group=control];
+    PI_Q [label="PI控制器\nIq环", group=control];
+    
+    Park [label="Park变换\nαβ -> dq", group=transform];
+    InvPark [label="反Park变换\ndq -> αβ", group=transform];
+    
+    // 4. 观测器 (子图)
+    subgraph cluster_observer {
+        label="无感观测器核心";
+        style=dashed;
+        color=gray;
+        FluxObs [label="磁链/滑模观测器", shape=box];
+        PLL [label="锁相环\nPLL", shape=diamond];
+    }
+
+    // 5. 硬件层
+    SVPWM [label="SVPWM生成", group=pwm];
+    Inverter [label="三相逆变器", group=pwm];
+    Motor [label="PMSM/BLDC\n电机", shape=circle, group=hardware];
+    Shunt [label="电流采样\nIa, Ib", shape=box, group=hardware];
+    Clarke [label="Clarke变换\nabc -> αβ", shape=diamond, group=transform];
+
+    // --- 连接关系 ---
+
+    // 1. 速度环流向
+    Speed_Ref -> PI_Speed;
+    PI_Speed -> PI_Q [label="Iq_Ref", color=blue]; // 速度环输出作为Iq参考
+
+    // 2. 电流环前向通路 (从左到右)
+    Id_Ref -> PI_D [label="Id_Ref"];
+    PI_D -> InvPark [label="Ud"];
+    PI_Q -> InvPark [label="Uq"];
+    InvPark -> SVPWM;
+    SVPWM -> Inverter;
+    Inverter -> Motor;
+
+    // 3. 反馈回路 (从右到左，下方)
+    Motor -> Shunt;
+    Shunt -> Clarke;
+    
+    // Clarke分流：去观测器 和 去Park变换
+    Clarke -> FluxObs [style=dashed, label="Iα,Iβ"];
+    Clarke -> Park;
+
+    // 4. 观测器逻辑
+    // 观测器也需要电压模型作为输入 (可选，视算法而定)
+    InvPark -> FluxObs [style=dashed, label="Ud,Uq (反馈)", constraint=false];
+    FluxObs -> PLL;
+
+    // 5. 关键的角度闭环 (从上向下)
+    // 估算角度 Est_Theta 同时控制 Park 和 InvPark
+    PLL -> Park [label="Est_Theta", color=red, penwidth=2];
+    PLL -> InvPark [label="Est_Theta", color=red, penwidth=2];
+    PLL -> PI_Speed [label="Est_Speed", style=dashed];
+
+    // 6. 电流反馈闭环
+    Park -> PI_D [label="Id_Fb", color=orange];
+    Park -> PI_Q [label="Iq_Fb", color=orange];
+
+    // --- 布局约束 (强制分层，防止乱跑) ---
+    { rank=same; Speed_Ref; Id_Ref; }
+    { rank=same; PI_Speed; }
+    { rank=same; PI_D; PI_Q; }
+    { rank=same; Park; InvPark; } // 强制Park和InvPark在同一层级，但左右分开
+    { rank=same; SVPWM; Inverter; }
+    { rank=same; Motor; Shunt; }
+}
+----
+
