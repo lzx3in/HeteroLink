@@ -86,11 +86,40 @@ pub fn setup_callbacks(
             let tx = tx.clone();
             slint::spawn_local(async move {
                 if let Some(ui) = ui_weak.upgrade() {
-                    add_log_message(&ui, "正在连接 MQTT...");
-                    if let Err(e) = mqtt.lock().await.connect(tx).await {
-                        add_log_message(&ui, &format!("MQTT 连接失败: {}", e));
-                    } else {
-                        add_log_message(&ui, "MQTT 已连接");
+                    // Read config from UI
+                    let host = ui.get_mqtt_host().to_string();
+                    let port = ui.get_mqtt_port() as u16;
+                    let username = ui.get_mqtt_username().to_string();
+                    let password = ui.get_mqtt_password().to_string();
+                    let client_id = ui.get_mqtt_client_id().to_string();
+                    let use_tls = ui.get_mqtt_tls();
+
+                    if host.is_empty() {
+                        add_log_message(&ui, "错误: 请设置 Broker 地址");
+                        return;
+                    }
+
+                    add_log_message(&ui, &format!("正在连接 MQTT: {}:{}...", host, port));
+
+                    // Update MQTT config
+                    let config = crate::protocol::MqttConfig {
+                        broker_host: host,
+                        broker_port: port,
+                        username: if username.is_empty() { None } else { Some(username) },
+                        password: if password.is_empty() { None } else { Some(password) },
+                        client_id: if client_id.is_empty() {
+                            format!("heterolink-host-{}", &uuid::Uuid::new_v4().to_string()[..8])
+                        } else {
+                            client_id
+                        },
+                        use_tls,
+                    };
+
+                    let mut mqtt_ch = mqtt.lock().await;
+                    mqtt_ch.update_config(config);
+                    match mqtt_ch.connect(tx).await {
+                        Ok(_) => add_log_message(&ui, "MQTT 连接中..."),
+                        Err(e) => add_log_message(&ui, &format!("MQTT 连接失败: {}", e)),
                     }
                 }
             }).unwrap();

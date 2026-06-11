@@ -228,8 +228,6 @@ impl DeviceManager {
         // 订阅该设备的命令和状态
         if let Some(mqtt) = &self.mqtt_channel {
             let mqtt = mqtt.lock().await;
-            let _ = mqtt.subscribe_device_commands(device_id).await;
-            let _ = mqtt.subscribe(&format!("heterolink/subboard/{}/status", device_id), rumqttc::QoS::AtLeastOnce).await;
         }
 
         info!("MQTT device added: {}", device_id);

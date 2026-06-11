@@ -1,3 +1,4 @@
+use crate::protocol::TelemetryData;
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -47,8 +48,6 @@ async fn main() -> Result<()> {
             password: if cfg.mqtt.password.is_empty() { None } else { Some(cfg.mqtt.password.clone()) },
             client_id: cfg.mqtt.client_id.clone(),
             use_tls: cfg.mqtt.use_tls,
-            will_topic: None,
-            will_message: None,
         }
     };
     let mqtt_channel = Arc::new(TokioMutex::new(MqttChannel::new(mqtt_config)));
@@ -153,6 +152,9 @@ async fn main() -> Result<()> {
 
     // MQTT event handler
     let dm_mqtt = device_manager.clone();
+    let dp_mqtt = data_processor.clone();
+    let as_mqtt = alarm_system.clone();
+    let dl_mqtt = data_logger.clone();
     let uw_mqtt = ui_weak.clone();
 
     tokio::spawn(async move {
@@ -177,44 +179,93 @@ async fn main() -> Result<()> {
                     }).ok();
                 }
                 MqttEvent::DeviceStatusReceived { device_id, online } => {
-                    let devices = dm_mqtt.lock().await.get_devices().await;
-                    if let Some(mut device) = devices.get(&device_id).cloned() {
-                        device.online = online;
-                        let _ = dm_mqtt.lock().await.add_device(device).await;
+                    // Ensure device exists
+                    let mut dm = dm_mqtt.lock().await;
+                    let devices = dm.get_devices().await;
+                    if !devices.contains_key(&device_id) {
+                        let mut device = DeviceInfo::new(device_id.clone(), format!("MQTT-{}", device_id));
+                        device.connection_type = "MQTT".to_string();
+                        let _ = dm.add_device(device).await;
                     }
-                    let msg = format!("MQTT 设备 {} {}", device_id, if online { "上线" } else { "下线" });
+                    drop(dm);
+                    // Update device online status
+                    {
+                        let mut dm = dm_mqtt.lock().await;
+                        let devices = dm.get_devices().await;
+                        if let Some(mut device) = devices.get(&device_id).cloned() {
+                            device.online = online;
+                            device.connected = online;
+                            let _ = dm.remove_device(&device_id).await;
+                            let _ = dm.add_device(device).await;
+                        }
+                    }
+                    // Update UI device list
+                    let devices = dm_mqtt.lock().await.get_devices().await;
+                    let device_list: Vec<DeviceInfo> = devices.values().cloned().collect();
                     let uw = uw_mqtt.clone();
                     slint::invoke_from_event_loop(move || {
                         if let Some(ui) = uw.upgrade() {
-                            ui::add_log_message(&ui, &msg);
+                            ui::update_device_list(&ui, &device_list);
+                            let status = if online { "上线" } else { "下线" };
+                            ui::add_log_message(&ui, &format!("设备 {} {}", device_id, status));
                         }
                     }).ok();
                 }
                 MqttEvent::TelemetryReceived { device_id, data } => {
-                    let msg = format!("MQTT 遥测: {} -> {}...", device_id, &data[..data.len().min(60)]);
-                    let uw = uw_mqtt.clone();
-                    slint::invoke_from_event_loop(move || {
-                        if let Some(ui) = uw.upgrade() {
-                            ui::add_log_message(&ui, &msg);
+                    // Parse telemetry JSON: {"ts":...,"channels":{"ch1":722.0,"ch2":463.0,...}}
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                        let mut channels = Vec::new();
+                        if let Some(ch_map) = json.get("channels").and_then(|c| c.as_object()) {
+                            for i in 1..=8 {
+                                let key = format!("ch{}", i);
+                                if let Some(val) = ch_map.get(&key).and_then(|v| v.as_f64()) {
+                                    channels.push(val as f32);
+                                }
+                            }
                         }
-                    }).ok();
+                        if channels.is_empty() { continue; }
+
+                        let ts = json.get("ts").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                        let telemetry = TelemetryData { timestamp: ts, channels };
+
+                        // Add to data processor
+                        dp_mqtt.add_data(&device_id, telemetry.clone()).await;
+
+                        // Check alarms
+                        as_mqtt.check_data(&device_id, &telemetry).await;
+
+                        // Write to logger
+                        dl_mqtt.lock().await.write_data(&device_id, &telemetry);
+
+                        // Update UI with latest data
+                        let latest = dp_mqtt.get_latest_data(&device_id, 50).await;
+                        let stats = dp_mqtt.get_stats(&device_id).await;
+                        let stats_vec: Vec<(i32, crate::core::ChannelStats)> = stats.into_iter().collect();
+                        let alarms = as_mqtt.get_alarm_records(&device_id).await;
+                        let uw = uw_mqtt.clone();
+                        slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = uw.upgrade() {
+                                ui::update_telemetry_list(&ui, &latest);
+                                ui::update_stats_list(&ui, &stats_vec);
+                                ui::update_alarm_list(&ui, &alarms);
+                            }
+                        }).ok();
+                    }
                 }
                 MqttEvent::CommandReceived { device_id, command } => {
-                    let msg = format!("MQTT 命令: {} -> {}", device_id, command);
                     let uw = uw_mqtt.clone();
                     slint::invoke_from_event_loop(move || {
                         if let Some(ui) = uw.upgrade() {
-                            ui::add_log_message(&ui, &msg);
+                            ui::add_log_message(&ui, &format!("命令: {} -> {}", device_id, command));
                         }
                     }).ok();
                 }
                 MqttEvent::MessageReceived { .. } => {}
                 MqttEvent::Error(msg) => {
                     let uw = uw_mqtt.clone();
-                    let err_msg = format!("MQTT 错误: {}", msg);
                     slint::invoke_from_event_loop(move || {
                         if let Some(ui) = uw.upgrade() {
-                            ui::add_log_message(&ui, &err_msg);
+                            ui::add_log_message(&ui, &format!("MQTT 错误: {}", msg));
                         }
                     }).ok();
                 }
