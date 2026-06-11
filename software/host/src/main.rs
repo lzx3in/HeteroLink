@@ -212,6 +212,7 @@ async fn main() -> Result<()> {
                     }).ok();
                 }
                 MqttEvent::TelemetryReceived { device_id, data } => {
+                    info!("Telemetry from {}: {} bytes", device_id, data.len());
                     // Parse telemetry JSON: {"ts":...,"channels":{"ch1":722.0,"ch2":463.0,...}}
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
                         let mut channels = Vec::new();
@@ -291,6 +292,31 @@ async fn main() -> Result<()> {
     // Explicitly show the window
     ui.show().map_err(|e| anyhow::anyhow!("Failed to show window: {}", e))?;
     info!("Window shown");
+    
+    // Auto-connect MQTT on startup
+    {
+        let mqtt_ch = mqtt_channel.clone();
+        let tx = mqtt_event_tx.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            info!("Auto-connecting to MQTT broker...");
+            let mut mqtt = mqtt_ch.lock().await;
+            match mqtt.connect(tx).await {
+                Ok(_) => {
+                    info!("MQTT connection initiated");
+                    let _ = slint::invoke_from_event_loop(move || {
+                        // UI update will happen via MQTT events
+                    });
+                }
+                Err(e) => {
+                    warn!("MQTT auto-connect failed: {}", e);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        // Error will be logged via MQTT events
+                    });
+                }
+            }
+        });
+    }
     
     // Run the event loop
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| slint::run_event_loop())) {

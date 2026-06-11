@@ -30,7 +30,7 @@ pub struct MqttConfigData {
 impl Default for MqttConfigData {
     fn default() -> Self {
         Self {
-            broker_host: "localhost".to_string(),
+            broker_host: "broker.emqx.io".to_string(),
             broker_port: 1883,
             username: String::new(),
             password: String::new(),
