@@ -1,0 +1,280 @@
+#!/bin/bash
+# esp-usb — WSL-side ESP32 USB/IP manager
+# Auto-detect & attach ESP32 dev boards from WSL2 without Windows PowerShell.
+#
+# USAGE:
+#   esp-usb list               List all USB devices
+#   esp-usb detect             Show recognized ESP32 devices
+#   esp-usb attach [BUSID]     Auto-find and attach ESP32
+#   esp-usb detach [BUSID]     Detach ESP32
+#   esp-usb status             Quick status: devices + serial ports
+#   esp-usb port               Show attached serial port path
+#
+# SUPPORTED ESP32 USB CHIPS:
+#   CP210x        VID 10C4  (Silicon Labs — most common)
+#   CH340/CH341   VID 1A86  (WCH — common on cheap boards)
+#   ESP USB-JTAG  VID 303A  (ESP32-S2/S3/C3 built-in)
+#   FTDI          VID 0403  (FT2232H, FT232H based adapters)
+
+set -euo pipefail
+
+USBIPD="/mnt/c/Program Files/usbipd-win/usbipd.exe"
+
+# ── Colors ───────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+
+die() { echo -e "${RED}✗ $1${NC}" >&2; exit 1; }
+ok()  { echo -e "${GREEN}✓ $1${NC}"; }
+info() { echo -e "${CYAN}→ $1${NC}"; }
+
+check_usbipd() {
+    [ -x "$USBIPD" ] || die "usbipd.exe not found at $USBIPD\n  Install: winget install dorssel.usbipd-win"
+}
+
+# ── Known ESP32 USB IDs ──────────────────────────────────────────
+# Format: "VID:LABEL"
+declare -A ESP_CHIPS=(
+    ["10C4"]="CP210x (Silicon Labs)"
+    ["1A86"]="CH340/CH341 (WCH)"
+    ["303A"]="ESP USB-JTAG (Espressif)"
+    ["0403"]="FTDI Serial"
+)
+
+_esp_pattern() {
+    local pattern=""
+    for vid in "${!ESP_CHIPS[@]}"; do
+        [ -n "$pattern" ] && pattern="${pattern}|"
+        pattern="${pattern}${vid}:"
+    done
+    echo "$pattern"
+}
+
+_identify_chip() {
+    local line="$1"
+    for vid in "${!ESP_CHIPS[@]}"; do
+        if echo "$line" | grep -qi "${vid}:"; then
+            echo "${ESP_CHIPS[$vid]}"
+            return
+        fi
+    done
+    echo "Unknown"
+}
+
+# ── Parse usbipd output ──────────────────────────────────────────
+
+get_devices() {
+    "$USBIPD" list 2>/dev/null | awk '/^Connected:/,/^Persisted:/' | tail -n +2 | head -n -1
+}
+
+parse_busid()  { echo "$1" | awk '{print $1}'; }
+parse_vidpid() { echo "$1" | awk '{print $2}'; }
+
+parse_state() {
+    local line="$1"
+    if echo "$line" | grep -q "Attached - Windows"; then echo "Attached - Windows"
+    elif echo "$line" | grep -q "Not shared";     then echo "Not shared"
+    elif echo "$line" | grep -q "Shared";         then echo "Shared"
+    elif echo "$line" | grep -q "Attached";       then echo "Attached"
+    else echo "Unknown"
+    fi
+}
+
+get_esp_lines() {
+    get_devices | grep -iE "$(_esp_pattern)" || true
+}
+
+# ── Commands ─────────────────────────────────────────────────────
+
+cmd_list() {
+    check_usbipd
+    echo -e "${CYAN}═══ Connected USB Devices ═══${NC}"
+    "$USBIPD" list
+}
+
+cmd_detect() {
+    check_usbipd
+
+    echo -e "${CYAN}═══ ESP32 Device Detection ═══${NC}"
+    echo ""
+
+    local lines
+    lines=$(get_esp_lines)
+
+    if [ -z "$lines" ]; then
+        echo -e "  ${YELLOW}No ESP32 devices detected${NC}"
+        echo ""
+        echo -e "  Supported: CP210x, CH340, ESP USB-JTAG, FTDI"
+        echo -e "  Run ${BOLD}esp-usb list${NC} to see all USB devices"
+        return 1
+    fi
+
+    printf "  ${BOLD}%-8s %-12s %-28s %s${NC}\n" "BUSID" "VID:PID" "CHIP" "STATE"
+    printf "  %-8s %-12s %-28s %s\n" "─────" "───────" "────────────────────────────" "─────"
+
+    while IFS= read -r line; do
+        local busid vidpid chip state state_display
+        busid=$(parse_busid "$line")
+        vidpid=$(parse_vidpid "$line")
+        chip=$(_identify_chip "$line")
+        state=$(parse_state "$line")
+
+        case "$state" in
+            "Attached") state_display="${GREEN}Attached ✓${NC}" ;;
+            "Shared")   state_display="${YELLOW}Shared (ready)${NC}" ;;
+            *)          state_display="${RED}${state}${NC}" ;;
+        esac
+
+        printf "  %-8s %-12s %-28s %b\n" "$busid" "$vidpid" "$chip" "$state_display"
+    done <<< "$lines"
+
+    echo ""
+}
+
+cmd_attach() {
+    check_usbipd
+    local busid="${1:-}"
+
+    if [ -z "$busid" ]; then
+        # Find first ESP device that is Shared or Not shared (not already Attached to WSL)
+        local line
+        line=$(get_esp_lines | grep -v "Attached" | head -1)
+        [ -n "$line" ] || die "No ESP32 device ready to attach.\n  Run: esp-usb detect"
+        busid=$(parse_busid "$line")
+        local chip vidpid
+        chip=$(_identify_chip "$line")
+        vidpid=$(parse_vidpid "$line")
+        ok "Found ${chip} (${vidpid}) at ${busid}"
+    fi
+
+    # Check if already attached
+    local state
+    state=$(parse_state "$(get_esp_lines | grep "^${busid}" || true)")
+
+    if [ "$state" = "Attached" ]; then
+        ok "${busid} already attached to WSL"
+        _show_port
+        return 0
+    fi
+
+    info "Attaching ${busid} to WSL..."
+    "$USBIPD" attach --wsl --busid="$busid" 2>&1 \
+        || die "Attach failed. Try: esp-usb detach ${busid} then attach again"
+
+    # Wait for device to appear
+    sleep 2
+    _show_port
+}
+
+cmd_detach() {
+    check_usbipd
+    local busid="${1:-}"
+
+    if [ -z "$busid" ]; then
+        local line
+        line=$(get_esp_lines | grep "Attached" | head -1)
+        [ -n "$line" ] || die "No attached ESP32 device found.\n  Run: esp-usb detect"
+        busid=$(parse_busid "$line")
+    fi
+
+    info "Detaching ${busid}..."
+    "$USBIPD" detach --busid="$busid" 2>&1 || die "Detach failed"
+    ok "Detached ${busid}"
+}
+
+cmd_status() {
+    check_usbipd
+
+    echo -e "${CYAN}═══ ESP32 USB/IP Status ═══${NC}"
+    echo ""
+
+    # Kernel module
+    if lsmod 2>/dev/null | grep -qE "vhci_hcd|usbip"; then
+        echo -e "  WSL USB/IP kernel: ${GREEN}loaded${NC}"
+    else
+        echo -e "  WSL USB/IP kernel: ${YELLOW}not loaded${NC} (auto-loads on attach)"
+    fi
+
+    # ESP devices
+    local lines
+    lines=$(get_esp_lines)
+
+    if [ -z "$lines" ]; then
+        echo -e "  ESP32 devices: ${YELLOW}none detected${NC}"
+    else
+        while IFS= read -r line; do
+            local busid chip state
+            busid=$(parse_busid "$line")
+            chip=$(_identify_chip "$line")
+            state=$(parse_state "$line")
+
+            if [ "$state" = "Attached" ]; then
+                echo -e "  ${chip} ${busid}: ${GREEN}Attached to WSL ✓${NC}"
+            elif [ "$state" = "Shared" ]; then
+                echo -e "  ${chip} ${busid}: ${YELLOW}Shared (ready)${NC}"
+            else
+                echo -e "  ${chip} ${busid}: ${RED}${state}${NC}"
+            fi
+        done <<< "$lines"
+    fi
+
+    # Serial ports
+    _show_port
+}
+
+cmd_port() {
+    _show_port
+}
+
+_show_port() {
+    local ports=()
+    for p in /dev/ttyUSB* /dev/ttyACM*; do
+        [ -e "$p" ] && ports+=("$p")
+    done
+
+    if [ ${#ports[@]} -eq 0 ]; then
+        echo -e "  Serial ports: ${YELLOW}none found${NC} (device may still be initializing)"
+    else
+        echo -e "  Serial ports: ${GREEN}${ports[*]}${NC}"
+        for p in "${ports[@]}"; do
+            local info
+            info=$(udevadm info --query=property --name="$p" 2>/dev/null \
+                | grep -E "ID_VENDOR_ID|ID_MODEL_ID|ID_SERIAL_SHORT" \
+                | sed 's/ID_//' \
+                | paste -sd ',' -)
+            [ -n "$info" ] && echo -e "    ${p}: ${info}"
+        done
+    fi
+}
+
+# ── Main ─────────────────────────────────────────────────────────
+case "${1:-help}" in
+    list|ls)           cmd_list ;;
+    detect|d)          cmd_detect ;;
+    attach|a)          cmd_attach "${2:-}" ;;
+    detach|r)          cmd_detach "${2:-}" ;;
+    status|s)          cmd_status ;;
+    port|p)            cmd_port ;;
+    help|h|--help|-h)
+        echo "esp-usb — WSL-side ESP32 USB/IP manager"
+        echo ""
+        echo "Supported ESP32 chips: CP210x, CH340/CH341, ESP USB-JTAG, FTDI"
+        echo ""
+        echo "USAGE:"
+        echo "  esp-usb list               List all USB devices"
+        echo "  esp-usb detect             Show recognized ESP32 devices"
+        echo "  esp-usb attach [BUSID]     Auto-find or specify ESP32"
+        echo "  esp-usb detach [BUSID]     Detach ESP32"
+        echo "  esp-usb status             Quick status check"
+        echo "  esp-usb port               Show serial port path"
+        echo ""
+        echo "EXAMPLES:"
+        echo "  esp-usb detect             # Is my ESP32 plugged in?"
+        echo "  esp-usb attach             # Auto-attach first ESP32 found"
+        echo "  esp-usb attach 6-2         # Attach specific busid"
+        echo "  esp-usb status             # Check status + serial port"
+        echo "  esp-usb port               # Show /dev/tty path for flashing"
+        ;;
+    *)
+        die "Unknown command: $1\n  Run: esp-usb help" ;;
+esac
