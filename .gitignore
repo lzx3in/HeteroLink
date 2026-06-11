@@ -38,7 +38,7 @@ desktop.ini
 firmware/esp32/**/build/
 firmware/**/managed_components/
 software/host/build/
-software/host-slint/target/
+software/host/target/
 
 # ==============================================================================
 # Submodules / 3rdparty (managed separately)
