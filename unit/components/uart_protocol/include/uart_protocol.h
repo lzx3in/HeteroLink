@@ -100,9 +100,9 @@ typedef struct {
  * @brief 默认配置
  */
 #define UART_PROTOCOL_DEFAULT_CONFIG() { \
-    .uart_num = UART_NUM_1, \
-    .tx_io_num = GPIO_NUM_17, \
-    .rx_io_num = GPIO_NUM_18, \
+    .uart_num = UART_NUM_0, \
+    .tx_io_num = GPIO_NUM_16, \
+    .rx_io_num = GPIO_NUM_17, \
     .rts_io_num = -1, \
     .cts_io_num = -1, \
     .baud_rate = 921600, \
