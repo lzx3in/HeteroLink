@@ -1,4 +1,4 @@
-mod config;
+pub mod config;
 mod data_logger;
 
 pub use config::*;

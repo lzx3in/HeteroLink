@@ -1,4 +1,5 @@
 use crate::protocol::TelemetryData;
+use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -6,7 +7,7 @@ use tokio::sync::Mutex;
 use tracing::info;
 
 /// 通道统计数据
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ChannelStats {
     pub min: f32,
     pub max: f32,

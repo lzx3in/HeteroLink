@@ -1,0 +1,30 @@
+:root {
+  // Backgrounds
+  --bg-main: #1e1e1e;
+  --bg-panel: #252526;
+  --bg-toolbar: #2d2d2d;
+  --bg-card: #2d2d2d;
+  --bg-header: #2a2a2a;
+  --bg-hover: #333;
+  --bg-statusbar: #007acc;
+
+  // Borders
+  --border-color: #3e3e3e;
+  --border-color-lighter: #333;
+
+  // Channel colors
+  --ch1-color: #4fc3f7;
+  --ch2-color: #81c784;
+  --ch3-color: #ffb74d;
+  --ch4-color: #e57373;
+
+  // Status
+  --status-online: #4caf50;
+  --status-offline: #f44336;
+  --status-alarm: #ff9800;
+
+  // Alarm levels
+  --alarm-critical: #f44336;
+  --alarm-warning: #ff9800;
+  --alarm-info: #2196f3;
+}

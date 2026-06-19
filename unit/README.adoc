@@ -20,13 +20,7 @@ ESP32 协处理器子板固件，实现高速调试协处理器功能。
 ** 远程控制命令订阅（`heterolink/subboard/{id}/command`）
 ** 遥测数据发布（`heterolink/subboard/{id}/telemetry`）
 ** 告警推送（`heterolink/subboard/{id}/alarm`）
-** JSON 格式数据封装
-
-* *UART 自定义二进制协议*（近端通道）
-** 帧格式：`0xAA [CMD] [LEN] [PAYLOAD] [CRC16] 0x55`
-** 波特率：921600
-** 支持心跳、采集控制、遥测数据、错误报告
-** CRC16/MODBUS 校验
+** JSON 格式数据封装（cJSON）
 
 * *ADC/GPIO 双模点测*
 ** 8 通道可配置（ADC 模拟/GPIO 数字）
@@ -55,14 +49,14 @@ ESP32 协处理器子板固件，实现高速调试协处理器功能。
 ┌─────────────────────────────────────────────────────────────┐
 │                   协议层 (Protocol)                          │
 │ ┌──────────────┐ ┌──────────────┐ ┌─────────────────┐      │
-│ │ UART 协议栈  │ │ SPI+DMA      │ │ ADC/GPIO 探测   │      │
-│ │ 近端通信      │ │ 板间通信      │ │ 双模点测        │      │
+│ │ SPI+DMA      │ │ ADC/GPIO     │ │ MQTT JSON       │      │
+│ │ 板间通信      │ │ 双模点测      │ │ 远端通信         │      │
 │ └──────────────┘ └──────────────┘ └─────────────────┘      │
 └─────────────────────────────────────────────────────────────┘
                             │
 ┌─────────────────────────────────────────────────────────────┐
 │                   驱动层 (ESP-IDF HAL)                       │
-│ WiFi  │ MQTT  │ UART  │ SPI  │ DMA  │ ADC  │ GPIO          │
+│ WiFi  │ MQTT  │ SPI  │ DMA  │ ADC  │ GPIO                  │
 └─────────────────────────────────────────────────────────────┘
 ....
 
@@ -71,11 +65,6 @@ ESP32 协处理器子板固件，实现高速调试协处理器功能。
 *远端通道 (MQTT over WiFi)*:
 ....
 ADC/GPIO 采集 → 数据封装 → MQTT Publish → WiFi → Broker → 上位机
-....
-
-*近端通道 (UART 二进制)*:
-....
-上位机 → UART 接收 → 帧解析 → 数据处理 → 响应/转发
 ....
 
 *板间通道 (SPI+DMA)*:
@@ -97,11 +86,6 @@ unit/
 │   │   ├── include/
 │   │   │   └── spi_dma.h
 │   │   ├── spi_dma.c
-│   │   └── CMakeLists.txt
-│   ├── uart_protocol/        # UART 协议栈
-│   │   ├── include/
-│   │   │   └── uart_protocol.h
-│   │   ├── uart_protocol.c
 │   │   └── CMakeLists.txt
 │   └── adc_gpio_probe/       # ADC/GPIO 探测
 │       ├── include/
@@ -210,62 +194,6 @@ mosquitto_pub -h broker.emqx.io \
 |告警通知
 |===
 
-=== UART 帧格式
-
-....
- 0                   1                   2                   3
- 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-| 帧头 0xAA     | 命令码       | 数据长度 (LE)                 |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                                                               |
-~                         数据载荷                              ~
-|                                                               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-| CRC16 (LE)    | 帧尾 0x55     |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-....
-
-*帧字段说明*:
-* *帧头*: `0xAA` (固定)
-* *命令码*: 1 字节，定义命令类型
-* *数据长度*: 2 字节，小端序，表示载荷长度
-* *数据载荷*: N 字节，具体数据
-* *CRC16*: 2 字节，小端序，CRC16/MODBUS 校验
-* *帧尾*: `0x55` (固定)
-
-=== 命令字定义
-
-[cols="4*",options="header"]
-|===
-|命令码 |名称 |方向 |说明
-
-|0x01
-|CMD_HEARTBEAT
-|双向
-|心跳请求/响应
-
-|0x21
-|CMD_START_ACQ
-|主机→设备
-|开始采集
-
-|0x22
-|CMD_STOP_ACQ
-|主机→设备
-|停止采集
-
-|0x10
-|CMD_TELEMETRY
-|设备→主机
-|遥测数据
-
-|0xFF
-|CMD_ERROR
-|设备→主机
-|错误报告
-|===
-
 === MQTT 消息格式
 
 *状态消息* (`/status`):
@@ -309,9 +237,10 @@ mosquitto_pub -h broker.emqx.io \
 *控制命令* (`/command`):
 [source,json]
 ----
-{"cmd": "start"}
-// 或
+{"cmd": "start", "params": {"sample_rate": 1000}}
 {"cmd": "stop"}
+{"cmd": "set_gpio", "channel": 4, "value": 1}
+{"cmd": "set_alarm", "upper": 4000, "lower": 0, "enabled": true}
 ----
 
 == ⚙️ 配置选项
@@ -333,7 +262,6 @@ mosquitto_pub -h broker.emqx.io \
 === Device Configuration
 * `HETERO_DEVICE_ID`: 设备唯一标识（如 `subboard_001`）
 * `HETERO_DATA_UPLOAD_INTERVAL`: 数据上报间隔（ms，默认：1000）
-* `HETERO_ENABLE_UART_PROTOCOL`: 启用 UART 协议（默认：y）
 * `HETERO_ENABLE_SPI_DMA`: 启用 SPI+DMA（默认：y）
 * `HETERO_ENABLE_ADC_GPIO_PROBE`: 启用 ADC/GPIO 探测（默认：y）
 
@@ -388,17 +316,7 @@ mosquitto_sub -h broker.emqx.io -t "heterolink/subboard/+/telemetry" -v
 # heterolink/subboard/subboard_001/telemetry {"ts":...,"channels":{"ch1":3.300,...}}
 ----
 
-*4. UART 协议测试*
-[source,bash]
-----
-# 使用串口工具发送心跳帧
-echo -ne "\xAA\x01\x00\x00\xC0\xC1\x55" > /dev/ttyUSB0
-
-# 监视串口查看响应
-idf.py -p /dev/ttyUSB0 monitor
-----
-
-*5. MQTT 命令测试*
+*4. MQTT 命令测试*
 [source,bash]
 ----
 # 发送启动采集命令
@@ -460,16 +378,6 @@ idf.py menuconfig
 ----
 . 检查 Client ID 是否唯一
 
-=== UART 通信失败
-*症状*: 无法与上位机通信
-
-*解决方案*:
-. 检查 TX/RX 引脚连接（TX 接 RX，RX 接 TX）
-. 确认波特率匹配（默认 921600）
-. 验证 CRC16 校验（使用 CRC16/MODBUS）
-. 检查串口线是否完好
-. 使用串口助手测试
-
 === ADC/GPIO 采集异常
 *症状*: 采集数据不准确或无数据
 
@@ -488,9 +396,7 @@ idf.py menuconfig
 * link:../../docs/getting-started/quick-start.adoc[快速开始（精简版）]
 
 === 软件文档
-* (上位机文档已迁移至 software/host/)
-* (上位机文档已迁移至 software/host/)
-* (上位机文档已迁移至 software/host/)
+* link:../../software/host/[Rust + Slint 上位机] - 桌面监控应用
 
 === 硬件文档
 * link:../../docs/hardware/[硬件设计]
@@ -504,7 +410,7 @@ idf.py menuconfig
 == 📝 待办事项
 
 === 固件增强
-* [ ] 完善 MQTT 命令解析（JSON 解析：cJSON）
+* [x] 完善 MQTT 命令解析（JSON via cJSON）
 * [ ] 添加 OTA 升级支持
 * [ ] 实现配置持久化（NVS）
 * [ ] 添加 FreeRTOS 任务监控
@@ -512,9 +418,9 @@ idf.py menuconfig
 * [ ] 添加看门狗（WDT）配置
 
 === 协议完善
-* [ ] 定义完整的 UART 命令表
+* [x] 完善 MQTT 命令解析（JSON via cJSON）
 * [ ] 实现命令确认机制
-* [ ] 添加流量控制
+* [ ] 添加 MQTT 流量控制
 
 === 测试
 * [ ] 编写单元测试

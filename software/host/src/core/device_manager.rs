@@ -1,13 +1,14 @@
 use crate::protocol::{MqttChannel, TelemetryData};
 use anyhow::Result;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, Mutex};
-use tracing::{info, error};
+use tracing::info;
 
 /// 设备信息
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DeviceInfo {
     pub id: String,
     pub name: String,
