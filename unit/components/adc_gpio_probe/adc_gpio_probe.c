@@ -50,6 +50,9 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
     out_handle->adc1_handle = NULL;
     out_handle->adc2_handle = NULL;
     out_handle->cali_handle = NULL;
+    for (size_t i = 0; i < PROBE_MAX_CHANNELS; i++) {
+        out_handle->cali_handles[i] = NULL;
+    }
 
     // 检查是否需要 ADC
     bool need_adc1 = false;
@@ -163,6 +166,28 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
         out_handle->states[i].data.gpio_value = false;
     }
 
+    // 为每个 ADC 通道创建校准句柄 (curve fitting scheme)
+    for (size_t i = 0; i < config->channel_count; i++) {
+        const probe_channel_config_t *ch = &config->channels[i];
+        if (ch->mode != PROBE_MODE_ADC) continue;
+
+        adc_cali_curve_fitting_config_t cali_cfg = {
+            .unit_id  = (ch->adc_unit == 1) ? ADC_UNIT_1 : ADC_UNIT_2,
+            .chan     = ch->adc_channel,
+            .atten    = ch->attenuation,
+            .bitwidth = ch->bit_width,
+        };
+
+        adc_cali_handle_t cali = NULL;
+        esp_err_t cali_ret = adc_cali_create_scheme_curve_fitting(&cali_cfg, &cali);
+        if (cali_ret == ESP_OK) {
+            out_handle->cali_handles[i] = cali;
+            ESP_LOGI(TAG, "  CH%u: ADC calibration created (curve fitting)", ch->channel_num);
+        } else {
+            ESP_LOGW(TAG, "  CH%u: ADC calibration not available: %s", ch->channel_num, esp_err_to_name(cali_ret));
+        }
+    }
+
     // 复制配置
     out_handle->config = *config;
     out_handle->initialized = true;
@@ -189,11 +214,14 @@ esp_err_t adc_gpio_probe_deinit(adc_gpio_probe_device_t *handle)
         adc_oneshot_del_unit(handle->adc2_handle);
         handle->adc2_handle = NULL;
     }
-    // ESP-IDF v6.0: 校准句柄清理（如果使用了校准）
-    if (handle->cali_handle) {
-        // 校准句柄由框架管理，通常不需要手动删除
-        handle->cali_handle = NULL;
+    // 删除校准句柄
+    for (size_t i = 0; i < PROBE_MAX_CHANNELS; i++) {
+        if (handle->cali_handles[i]) {
+            adc_cali_delete_scheme_curve_fitting(handle->cali_handles[i]);
+            handle->cali_handles[i] = NULL;
+        }
     }
+    handle->cali_handle = NULL;
     
     handle->initialized = false;
     handle->sampling = false;
@@ -269,11 +297,35 @@ esp_err_t adc_gpio_probe_read_channel(adc_gpio_probe_device_t *handle,
             ESP_LOGE(TAG, "ADC read failed: %s", esp_err_to_name(ret));
             return ret;
         }
+
+        // Use calibration to convert raw ADC to millivolts
+        size_t ch_idx = 0;
+        for (size_t j = 0; j < handle->config.channel_count; j++) {
+            if (handle->config.channels[j].channel_num == channel_num) {
+                ch_idx = j;
+                break;
+            }
+        }
+
+        uint32_t result;
+        if (handle->cali_handles[ch_idx]) {
+            int voltage_mv = 0;
+            esp_err_t cali_ret = adc_cali_raw_to_voltage(
+                handle->cali_handles[ch_idx], adc_value, &voltage_mv);
+            if (cali_ret == ESP_OK) {
+                result = (uint32_t)voltage_mv;
+            } else {
+                result = (uint32_t)adc_value;
+                ESP_LOGW(TAG, "Calibration conversion failed, using raw value");
+            }
+        } else {
+            result = (uint32_t)adc_value;
+        }
+
+        state->data.adc_value = result;
+        *out_value = result;
         
-        state->data.adc_value = (uint32_t)adc_value;
-        *out_value = (uint32_t)adc_value;
-        
-        ESP_LOGD(TAG, "CH%u ADC: %lu", channel_num, (uint32_t)adc_value);
+        ESP_LOGD(TAG, "CH%u ADC: raw=%d, value=%lu", channel_num, adc_value, result);
     } else {
         // GPIO 模式
         bool value = gpio_get_level(ch_config->gpio_num);

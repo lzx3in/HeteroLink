@@ -95,6 +95,8 @@ typedef struct {
     adc_oneshot_unit_handle_t adc1_handle;
     adc_oneshot_unit_handle_t adc2_handle;
     adc_cali_handle_t cali_handle;
+    /* Per-channel calibration handles (NULL for non-ADC channels) */
+    adc_cali_handle_t cali_handles[PROBE_MAX_CHANNELS];
 } adc_gpio_probe_device_t;
 
 /**
