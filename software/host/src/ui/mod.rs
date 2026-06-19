@@ -124,11 +124,22 @@ pub fn setup_callbacks(
             let logger = logger.clone();
             slint::spawn_local(async move {
                 if let Some(ui) = ui_weak.upgrade() {
-                    if let Err(e) = logger.lock().await.start_recording("./logs", "device_0") {
-                        add_log_message(&ui, &format!("开始记录失败: {}", e));
+                    let idx = ui.get_selected_device_index();
+                    let devices = ui.get_devices();
+                    if idx < 0 {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                        return;
+                    }
+                    if let Some(device) = devices.iter().nth(idx as usize) {
+                        let device_id = device.id.to_string();
+                        if let Err(e) = logger.lock().await.start_recording("./logs", &device_id) {
+                            add_log_message(&ui, &format!("开始记录失败: {}", e));
+                        } else {
+                            ui.set_recording(true);
+                            add_log_message(&ui, &format!("开始记录: {}", device_id));
+                        }
                     } else {
-                        ui.set_recording(true);
-                        add_log_message(&ui, "开始记录数据");
+                        add_log_message(&ui, "错误: 请先选择设备");
                     }
                 }
             }).unwrap();
@@ -319,7 +330,15 @@ pub fn setup_callbacks(
             let alarms = alarms.clone();
             slint::spawn_local(async move {
                 if let Some(ui) = ui_weak.upgrade() {
-                    alarms.clear_records("device_0").await;
+                    let records = alarms.get_all_alarm_records().await;
+                    let device_ids: Vec<String> = records.iter()
+                        .map(|r| r.device_id.clone())
+                        .collect::<std::collections::HashSet<_>>()
+                        .into_iter()
+                        .collect();
+                    for device_id in &device_ids {
+                        alarms.clear_records(device_id).await;
+                    }
                     add_log_message(&ui, "告警记录已清除");
                 }
             }).unwrap();
