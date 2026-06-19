@@ -20,6 +20,7 @@ pub fn setup_callbacks(
     mqtt_channel: Arc<TokioMutex<MqttChannel>>,
     device_event_tx: mpsc::Sender<DeviceEvent>,
     mqtt_event_tx: mpsc::Sender<MqttEvent>,
+    simulation_tx: Option<mpsc::Sender<MqttEvent>>,
 ) {
     // Disconnect device
     {
@@ -342,6 +343,140 @@ pub fn setup_callbacks(
                     add_log_message(&ui, &format!("选中设备: {}", device.name));
                 }
             }
+        });
+    }
+
+    // Send start command
+    {
+        let ui_weak = ui.as_weak();
+        let mqtt = mqtt_channel.clone();
+        let sim_tx = simulation_tx.clone();
+        ui.on_send_start_command(move |sample_rate| {
+            let ui_weak = ui_weak.clone();
+            let mqtt = mqtt.clone();
+            let sim_tx = sim_tx.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let idx = ui.get_selected_device_index();
+                    let devices = ui.get_devices();
+                    if idx < 0 {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                        return;
+                    }
+                    if let Some(device) = devices.iter().nth(idx as usize) {
+                        let device_id = device.id.to_string();
+                        let cmd = serde_json::json!({
+                            "cmd": "start",
+                            "params": { "sample_rate": sample_rate }
+                        }).to_string();
+
+                        if let Some(ref tx) = sim_tx {
+                            let response = crate::protocol::MqttChannel::simulate_response(&cmd);
+                            let _ = tx.send(MqttEvent::ResponseReceived {
+                                device_id: device_id.clone(), response,
+                            }).await;
+                            add_log_message(&ui, &format!("[模拟] -> start ({}Hz) -> {}", sample_rate, device_id));
+                        } else {
+                            let mqtt_ch = mqtt.lock().await;
+                            match mqtt_ch.publish_command(&device_id, &cmd).await {
+                                Ok(_) => add_log_message(&ui, &format!("-> 发送命令: start ({}Hz) -> {}", sample_rate, device_id)),
+                                Err(e) => add_log_message(&ui, &format!("发送失败: {}", e)),
+                            }
+                        }
+                    } else {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Send stop command
+    {
+        let ui_weak = ui.as_weak();
+        let mqtt = mqtt_channel.clone();
+        let sim_tx = simulation_tx.clone();
+        ui.on_send_stop_command(move || {
+            let ui_weak = ui_weak.clone();
+            let mqtt = mqtt.clone();
+            let sim_tx = sim_tx.clone();
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let idx = ui.get_selected_device_index();
+                    let devices = ui.get_devices();
+                    if idx < 0 {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                        return;
+                    }
+                    if let Some(device) = devices.iter().nth(idx as usize) {
+                        let device_id = device.id.to_string();
+                        let cmd = serde_json::json!({"cmd": "stop"}).to_string();
+
+                        if let Some(ref tx) = sim_tx {
+                            let response = crate::protocol::MqttChannel::simulate_response(&cmd);
+                            let _ = tx.send(MqttEvent::ResponseReceived {
+                                device_id: device_id.clone(), response,
+                            }).await;
+                            add_log_message(&ui, &format!("[模拟] -> stop -> {}", device_id));
+                        } else {
+                            let mqtt_ch = mqtt.lock().await;
+                            match mqtt_ch.publish_command(&device_id, &cmd).await {
+                                Ok(_) => add_log_message(&ui, &format!("-> 发送命令: stop -> {}", device_id)),
+                                Err(e) => add_log_message(&ui, &format!("发送失败: {}", e)),
+                            }
+                        }
+                    } else {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                    }
+                }
+            }).unwrap();
+        });
+    }
+
+    // Send GPIO command
+    {
+        let ui_weak = ui.as_weak();
+        let mqtt = mqtt_channel.clone();
+        let sim_tx = simulation_tx.clone();
+        ui.on_send_gpio_command(move |channel, value| {
+            let ui_weak = ui_weak.clone();
+            let mqtt = mqtt.clone();
+            let sim_tx = sim_tx.clone();
+            let gpio_val: i32 = if value { 1 } else { 0 };
+            slint::spawn_local(async move {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let idx = ui.get_selected_device_index();
+                    let devices = ui.get_devices();
+                    if idx < 0 {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                        return;
+                    }
+                    if let Some(device) = devices.iter().nth(idx as usize) {
+                        let device_id = device.id.to_string();
+                        let cmd = serde_json::json!({
+                            "cmd": "set_gpio",
+                            "channel": channel,
+                            "value": gpio_val
+                        }).to_string();
+
+                        if let Some(ref tx) = sim_tx {
+                            let response = crate::protocol::MqttChannel::simulate_response(&cmd);
+                            let _ = tx.send(MqttEvent::ResponseReceived {
+                                device_id: device_id.clone(), response,
+                            }).await;
+                            add_log_message(&ui, &format!("[模拟] -> set_gpio ch{}={} -> {}", channel, gpio_val, device_id));
+                        } else {
+                            let mqtt_ch = mqtt.lock().await;
+                            match mqtt_ch.publish_command(&device_id, &cmd).await {
+                                Ok(_) => add_log_message(&ui, &format!("-> 发送命令: set_gpio ch{}={} -> {}", channel, gpio_val, device_id)),
+                                Err(e) => add_log_message(&ui, &format!("发送失败: {}", e)),
+                            }
+                        }
+                    } else {
+                        add_log_message(&ui, "错误: 请先选择设备");
+                    }
+                }
+            }).unwrap();
         });
     }
 }

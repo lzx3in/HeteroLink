@@ -38,10 +38,12 @@ pub enum MqttEvent {
     DeviceStatusReceived { device_id: String, online: bool },
     TelemetryReceived { device_id: String, data: String },
     CommandReceived { device_id: String, command: String },
+    ResponseReceived { device_id: String, response: String },
 }
 
 pub struct MqttChannel {
     pub config: MqttConfig,
+    pub simulation_mode: bool,
     client: Option<Arc<Mutex<AsyncClient>>>,
     connected: Arc<Mutex<bool>>,
     reconnect_attempts: Arc<Mutex<u32>>,
@@ -54,15 +56,28 @@ const SUBSCRIBE_TOPICS: &[&str] = &[
     "heterolink/subboard/+/status",
     "heterolink/subboard/+/telemetry",
     "heterolink/subboard/+/alarm",
+    "heterolink/subboard/+/response",
 ];
 
 impl MqttChannel {
     pub fn new(config: MqttConfig) -> Self {
         Self {
             config,
+            simulation_mode: false,
             client: None,
             connected: Arc::new(Mutex::new(false)),
             reconnect_attempts: Arc::new(Mutex::new(0)),
+        }
+    }
+
+    pub fn set_simulation_mode(&mut self, enabled: bool) {
+        self.simulation_mode = enabled;
+        if enabled {
+            // Use try_lock; the connected Arc is not contended at init time
+            if let Ok(mut guard) = self.connected.try_lock() {
+                *guard = true;
+            }
+            info!("Simulation mode enabled");
         }
     }
 
@@ -151,6 +166,12 @@ impl MqttChannel {
                             let _ = event_tx.send(MqttEvent::CommandReceived {
                                 device_id, command,
                             }).await;
+                        } else if topic.contains("/response") {
+                            let device_id = Self::parse_device_id(&topic);
+                            let response = String::from_utf8_lossy(&payload).to_string();
+                            let _ = event_tx.send(MqttEvent::ResponseReceived {
+                                device_id, response,
+                            }).await;
                         }
 
                         let _ = event_tx.send(MqttEvent::MessageReceived { topic, payload }).await;
@@ -213,5 +234,46 @@ impl MqttChannel {
 
     fn parse_device_id(topic: &str) -> String {
         topic.split('/').nth(2).unwrap_or("unknown").to_string()
+    }
+
+    /// Generate a mock JSON response for simulation mode.
+    pub fn simulate_response(command_json: &str) -> String {
+        let cmd = serde_json::from_str::<serde_json::Value>(command_json)
+            .ok()
+            .and_then(|v| v.get("cmd").and_then(|c| c.as_str()).map(|s| s.to_string()))
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let (status, message) = match cmd.as_str() {
+            "start" => {
+                let rate = serde_json::from_str::<serde_json::Value>(command_json)
+                    .ok()
+                    .and_then(|v| v.get("params")
+                        .and_then(|p| p.get("sample_rate"))
+                        .and_then(|r| r.as_i64()))
+                    .unwrap_or(1000);
+                ("ok".to_string(), format!("Simulator: sampling started at {} Hz", rate))
+            }
+            "stop" => ("ok".to_string(), "Simulator: sampling stopped".to_string()),
+            "set_gpio" => {
+                let (ch, vl) = serde_json::from_str::<serde_json::Value>(command_json)
+                    .ok()
+                    .map(|v| {
+                        let c = v.get("channel").and_then(|x| x.as_i64()).unwrap_or(4);
+                        let val = v.get("value").and_then(|x| x.as_i64()).unwrap_or(0);
+                        (c, val)
+                    })
+                    .unwrap_or((4, 0));
+                ("ok".to_string(), format!("Simulator: GPIO ch{} = {}", ch, vl))
+            }
+            other => ("error".to_string(), format!("Simulator: unknown command '{}'", other)),
+        };
+
+        let ts = chrono::Utc::now().timestamp_millis();
+        serde_json::json!({
+            "cmd": cmd,
+            "status": status,
+            "message": message,
+            "timestamp": ts
+        }).to_string()
     }
 }

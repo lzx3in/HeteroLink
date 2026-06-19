@@ -3,6 +3,8 @@
 # WiFi 连接
 CONFIG_EXAMPLE_WIFI_SSID="lizixin"
 CONFIG_EXAMPLE_WIFI_PASSWORD="***"
+# 允许 example_connect 内部多次重试（由 app_main 指数退避接管后续重连）
+CONFIG_EXAMPLE_WIFI_CONN_MAX_RETRY=10
 
 # 分区表
 CONFIG_PARTITION_TABLE_CUSTOM=y

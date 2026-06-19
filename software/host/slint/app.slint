@@ -79,6 +79,12 @@ export component AppUI inherits Window {
     in-out property <bool> mqtt-connected: false;
     in-out property <bool> recording: false;
 
+    // === 设备控制 ===
+    in-out property <int> cmd-sample-rate: 1000;
+    in-out property <int> cmd-gpio-channel: 4;
+    in-out property <bool> cmd-gpio-value: false;
+    in-out property <string> cmd-last-response;
+
     // === 回调 ===
     callback disconnect-device(int);
     callback connect-mqtt();
@@ -95,6 +101,9 @@ export component AppUI inherits Window {
     callback add-device(string);
     callback remove-device(int);
     callback select-device(int);
+    callback send-start-command(int);
+    callback send-stop-command();
+    callback send-gpio-command(int, bool);
 
     in-out property <int> selected-device-index: -1;
 
@@ -382,6 +391,98 @@ export component AppUI inherits Window {
                                     font-size: 11px;
                                     color: #aaa;
                                     font-family: "monospace";
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        title: "🎮 设备控制";
+
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 12px;
+
+                            // === 采样控制 ===
+                            GroupBox {
+                                title: "采样控制";
+
+                                VerticalLayout {
+                                    padding: 8px;
+                                    spacing: 8px;
+
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: start;
+
+                                        Text { text: "采样率 (Hz):"; color: #aaa; vertical-alignment: center; }
+                                        SpinBox { value <=> cmd-sample-rate; minimum: 1; maximum: 100000; }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: start;
+
+                                        Button {
+                                            text: "▶ 开始采样";
+                                            clicked => { send-start-command(cmd-sample-rate); }
+                                        }
+                                        Button {
+                                            text: "⏹ 停止采样";
+                                            clicked => { send-stop-command(); }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // === GPIO 控制 ===
+                            GroupBox {
+                                title: "GPIO 控制";
+
+                                VerticalLayout {
+                                    padding: 8px;
+                                    spacing: 8px;
+
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: start;
+
+                                        Text { text: "通道:"; color: #aaa; vertical-alignment: center; }
+                                        SpinBox { value <=> cmd-gpio-channel; minimum: 0; maximum: 7; }
+
+                                        Text { text: "电平:"; color: #aaa; vertical-alignment: center; }
+                                        CheckBox { text: "高电平"; checked <=> cmd-gpio-value; }
+                                    }
+
+                                    Button {
+                                        text: "⚡ 设置 GPIO";
+                                        clicked => { send-gpio-command(cmd-gpio-channel, cmd-gpio-value); }
+                                    }
+                                }
+                            }
+
+                            // === 命令响应 ===
+                            GroupBox {
+                                title: "命令响应";
+
+                                VerticalLayout {
+                                    padding: 8px;
+                                    spacing: 4px;
+
+                                    Rectangle {
+                                        min-height: 60px;
+                                        background: #1e1e1e;
+                                        border-radius: 4px;
+
+                                        Text {
+                                            text: cmd-last-response == "" ? "等待响应..." : cmd-last-response;
+                                            color: cmd-last-response == "" ? #666 : #4caf50;
+                                            font-family: "monospace";
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            horizontal-alignment: center;
+                                        }
+                                    }
                                 }
                             }
                         }

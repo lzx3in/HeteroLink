@@ -22,7 +22,10 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    info!("Starting HeteroLink Host...");
+    let simulation_mode = std::env::args().any(|a| a == "--simulate" || a == "-s");
+
+    info!("Starting HeteroLink Host...{}",
+          if simulation_mode { " [SIMULATION MODE]" } else { "" });
 
     let device_manager = Arc::new(TokioMutex::new(DeviceManager::new()));
     let data_processor = Arc::new(DataProcessor::new());
@@ -52,6 +55,16 @@ async fn main() -> Result<()> {
     };
     let mqtt_channel = Arc::new(TokioMutex::new(MqttChannel::new(mqtt_config)));
 
+    // Enable simulation mode if requested
+    if simulation_mode {
+        mqtt_channel.lock().await.set_simulation_mode(true);
+    }
+
+    // Simulation event channel: UI callbacks inject mock responses here
+    let (sim_tx, mut sim_rx) = mpsc::channel::<MqttEvent>(50);
+    let simulation_tx: Option<mpsc::Sender<MqttEvent>> =
+        if simulation_mode { Some(sim_tx) } else { None };
+
     let (device_event_tx, mut device_event_rx) = mpsc::channel::<DeviceEvent>(200);
     let (mqtt_event_tx, mut mqtt_event_rx) = mpsc::channel::<MqttEvent>(200);
 
@@ -70,7 +83,18 @@ async fn main() -> Result<()> {
         mqtt_channel.clone(),
         device_event_tx.clone(),
         mqtt_event_tx.clone(),
+        simulation_tx.clone(),
     );
+
+    // Forward simulation events into the main MQTT event stream
+    if simulation_mode {
+        let mqtt_tx_sim = mqtt_event_tx.clone();
+        tokio::spawn(async move {
+            while let Some(evt) = sim_rx.recv().await {
+                let _ = mqtt_tx_sim.send(evt).await;
+            }
+        });
+    }
 
     // Device event handler (background tokio task, posts to UI thread)
     let dm_dev = device_manager.clone();
@@ -254,6 +278,23 @@ async fn main() -> Result<()> {
                         }
                     }).ok();
                 }
+                MqttEvent::ResponseReceived { device_id, response } => {
+                    let uw = uw_mqtt.clone();
+                    let display = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&response) {
+                        let status = json.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+                        let cmd = json.get("cmd").and_then(|v| v.as_str()).unwrap_or("?");
+                        let msg = json.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                        format!("{} [{}] {}: {}", device_id, status, cmd, msg)
+                    } else {
+                        format!("{}: {}", device_id, response)
+                    };
+                    slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = uw.upgrade() {
+                            ui.set_cmd_last_response(display.clone().into());
+                            ui::add_log_message(&ui, &format!("<- {}", display));
+                        }
+                    }).ok();
+                }
                 MqttEvent::MessageReceived { .. } => {}
                 MqttEvent::Error(msg) => {
                     let uw = uw_mqtt.clone();
@@ -286,27 +327,46 @@ async fn main() -> Result<()> {
     ui.show().map_err(|e| anyhow::anyhow!("Failed to show window: {}", e))?;
     info!("Window shown");
     
-    // Auto-connect MQTT on startup
+    // Auto-connect MQTT on startup + simulation device setup
     {
         let mqtt_ch = mqtt_channel.clone();
         let tx = mqtt_event_tx.clone();
+        let dm_sim = device_manager.clone();
+        let uw_sim = ui_weak.clone();
+        let is_sim = simulation_mode;
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+            if is_sim {
+                // Create simulation device in device manager
+                let sim_id = "sim_device_001".to_string();
+                let mut device = DeviceInfo::new(sim_id.clone(), "Simulator".to_string());
+                device.connection_type = "Simulation".to_string();
+                device.online = true;
+                device.connected = true;
+                let _ = dm_sim.lock().await.add_device(device).await;
+
+                // Inject Connected event so UI shows MQTT as connected
+                let _ = tx.send(MqttEvent::Connected).await;
+                let _ = tx.send(MqttEvent::DeviceStatusReceived {
+                    device_id: sim_id.clone(), online: true,
+                }).await;
+
+                info!("Simulation device '{}' created", sim_id);
+                let uw = uw_sim.clone();
+                slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = uw.upgrade() {
+                        ui::add_log_message(&ui, "[模拟] 模拟设备已就绪");
+                    }
+                }).ok();
+            }
+
+            // Always connect to real MQTT as well (allows mixing real + simulated)
             info!("Auto-connecting to MQTT broker...");
             let mut mqtt = mqtt_ch.lock().await;
             match mqtt.connect(tx).await {
-                Ok(_) => {
-                    info!("MQTT connection initiated");
-                    let _ = slint::invoke_from_event_loop(move || {
-                        // UI update will happen via MQTT events
-                    });
-                }
-                Err(e) => {
-                    warn!("MQTT auto-connect failed: {}", e);
-                    let _ = slint::invoke_from_event_loop(move || {
-                        // Error will be logged via MQTT events
-                    });
-                }
+                Ok(_) => info!("MQTT connection initiated"),
+                Err(e) => warn!("MQTT auto-connect failed: {}", e),
             }
         });
     }
