@@ -48,6 +48,14 @@ static bool mqtt_connected = false;
 static uint32_t telemetry_interval_ms = CONFIG_HETERO_DATA_UPLOAD_INTERVAL;
 static uint32_t last_telemetry_time = 0;
 
+#if CONFIG_HETERO_ENABLE_ALARM
+/* ── Alarm threshold state ──────────────────────────────────── */
+static bool     alarm_enabled = true;
+static float    alarm_upper_limit = CONFIG_HETERO_ALARM_UPPER_LIMIT;
+static float    alarm_lower_limit = CONFIG_HETERO_ALARM_LOWER_LIMIT;
+static bool     alarm_active[PROBE_MAX_CHANNELS] = { false };
+#endif
+
 /* ── WiFi exponential backoff state ─────────────────────────── */
 #define WIFI_BACKOFF_BASE_MS   1000
 #define WIFI_BACKOFF_MAX_MS    60000
@@ -123,6 +131,38 @@ static void mqtt_publish_alarm(const char *level, uint8_t channel,
                             json_payload, 0, 1, 0);
     ESP_LOGW(TAG, "Alarm: %s", json_payload);
 }
+
+#if CONFIG_HETERO_ENABLE_ALARM
+static void check_alarm_thresholds(float *channels, size_t count)
+{
+    if (!alarm_enabled) return;
+
+    for (size_t i = 0; i < count && i < PROBE_MAX_CHANNELS; i++) {
+        bool exceeded = false;
+        float threshold = 0.0f;
+        const char *level = "warning";
+
+        if (channels[i] > alarm_upper_limit) {
+            exceeded = true;
+            threshold = alarm_upper_limit;
+            level = "critical";
+        } else if (channels[i] < alarm_lower_limit) {
+            exceeded = true;
+            threshold = alarm_lower_limit;
+            level = "warning";
+        }
+
+        if (exceeded && !alarm_active[i]) {
+            alarm_active[i] = true;
+            mqtt_publish_alarm(level, (uint8_t)i, channels[i], threshold);
+        } else if (!exceeded && alarm_active[i]) {
+            alarm_active[i] = false;
+            ESP_LOGI(TAG, "Alarm cleared: ch%u value=%.3f back in range",
+                     (unsigned)i, channels[i]);
+        }
+    }
+}
+#endif
 
 /**
  * @brief Publish a structured JSON response to a command.
@@ -223,6 +263,30 @@ static void mqtt_handle_command(const char *topic, const char *data, int data_le
         ESP_LOGI(TAG, "%s", msg);
 #else
         mqtt_publish_response(cmd, "error", "GPIO probe not enabled");
+#endif
+    }
+    /* ── set_alarm ──────────────────────────────────────── */
+    else if (strcmp(cmd, "set_alarm") == 0) {
+#if CONFIG_HETERO_ENABLE_ALARM
+        cJSON *upper = cJSON_GetObjectItemCaseSensitive(root, "upper");
+        cJSON *lower = cJSON_GetObjectItemCaseSensitive(root, "lower");
+        cJSON *enable = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+
+        if (cJSON_IsNumber(upper)) alarm_upper_limit = (float)upper->valuedouble;
+        if (cJSON_IsNumber(lower)) alarm_lower_limit = (float)lower->valuedouble;
+        if (cJSON_IsBool(enable))  alarm_enabled = cJSON_IsTrue(enable);
+
+        /* Reset active alarms when thresholds change */
+        memset(alarm_active, 0, sizeof(alarm_active));
+
+        char msg[128];
+        snprintf(msg, sizeof(msg),
+                 "Alarm: enabled=%d upper=%.1f lower=%.1f",
+                 alarm_enabled, alarm_upper_limit, alarm_lower_limit);
+        mqtt_publish_response(cmd, "ok", msg);
+        ESP_LOGI(TAG, "%s", msg);
+#else
+        mqtt_publish_response(cmd, "error", "Alarm not enabled in config");
 #endif
     }
     /* ── unknown ───────────────────────────────────────── */
@@ -455,6 +519,9 @@ static void main_loop_task(void *pvParameters)
                 for (size_t i = 0; i < count; i++)
                     channels[i] = (float)values[i];
                 mqtt_publish_telemetry(channels, count);
+#if CONFIG_HETERO_ENABLE_ALARM
+                check_alarm_thresholds(channels, count);
+#endif
             }
 #endif
         }
@@ -521,6 +588,11 @@ void app_main(void)
 
     /* ── Telemetry loop ── */
     xTaskCreate(main_loop_task, "main_loop", 4096, NULL, 5, NULL);
+
+#if CONFIG_HETERO_ENABLE_ALARM
+    ESP_LOGI(TAG, "Alarm: enabled=%d upper=%.1f lower=%.1f",
+             alarm_enabled, alarm_upper_limit, alarm_lower_limit);
+#endif
 
     ESP_LOGI(TAG, "Initialization complete!");
 }

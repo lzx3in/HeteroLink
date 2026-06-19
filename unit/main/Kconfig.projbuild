@@ -93,4 +93,31 @@ menu "HeteroLink Configuration"
                 Log level: 0=None, 1=Error, 2=Warning, 3=Info, 4=Debug
     endmenu
 
+    menu "Alarm Configuration"
+        config HETERO_ENABLE_ALARM
+            bool "Enable Alarm Threshold Checking"
+            default y
+            help
+                Enable automatic alarm publishing when channel values
+                exceed configured thresholds.
+
+        config HETERO_ALARM_UPPER_LIMIT
+            int "Upper Threshold (raw ADC)"
+            default 4000
+            range 0 65535
+            depends on HETERO_ENABLE_ALARM
+            help
+                Upper limit for alarm triggering.
+                When a channel value exceeds this, an alarm is published.
+
+        config HETERO_ALARM_LOWER_LIMIT
+            int "Lower Threshold (raw ADC)"
+            default 0
+            range 0 65535
+            depends on HETERO_ENABLE_ALARM
+            help
+                Lower limit for alarm triggering.
+                When a channel value falls below this, an alarm is published.
+    endmenu
+
 endmenu
