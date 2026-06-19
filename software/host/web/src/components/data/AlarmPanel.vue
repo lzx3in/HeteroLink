@@ -16,7 +16,7 @@
               <el-tag :type="tagType(alarm)" size="small" effect="dark">
                 {{ alarm.level }}
               </el-tag>
-              <span class="alarm-channel">CH{{ alarm.channel }}</span>
+              <span class="alarm-channel">CH{{ alarm.channel_id }}</span>
               <span class="alarm-value mono-data">{{ alarm.value?.toFixed(2) }}</span>
             </div>
             <div class="alarm-footer">
@@ -79,7 +79,7 @@ function formatTime(ts: string): string {
 
 function handleAck(alarm: AlarmRecord) {
   if (selectedId.value) {
-    alarmStore.acknowledgeAlarm(selectedId.value, alarm.channel)
+    alarmStore.acknowledgeAlarm(selectedId.value, alarm.channel_id)
   }
 }
 

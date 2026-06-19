@@ -1,15 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { TelemetryData, ChannelStats } from '@/types'
+import type { TelemetryDto, ChannelStatsDto } from '@/types'
 import { fetchTelemetry as apiFetchTelemetry, fetchStats as apiFetchStats } from '@/api/device'
 
 const MAX_BUFFER = 200
 
 export const useTelemetryStore = defineStore('telemetry', () => {
-  const dataByDevice = ref<Map<string, TelemetryData[]>>(new Map())
-  const statsByDevice = ref<Map<string, ChannelStats[]>>(new Map())
+  const dataByDevice = ref<Map<string, TelemetryDto[]>>(new Map())
+  const statsByDevice = ref<Map<string, ChannelStatsDto[]>>(new Map())
 
-  function pushTelemetry(deviceId: string, data: TelemetryData) {
+  function pushTelemetry(deviceId: string, data: TelemetryDto) {
     if (!dataByDevice.value.has(deviceId)) {
       dataByDevice.value.set(deviceId, [])
     }
@@ -20,7 +20,7 @@ export const useTelemetryStore = defineStore('telemetry', () => {
     }
   }
 
-  function updateStats(deviceId: string, stats: ChannelStats[]) {
+  function updateStats(deviceId: string, stats: ChannelStatsDto[]) {
     statsByDevice.value.set(deviceId, stats)
   }
 

@@ -20,9 +20,9 @@ export const useDeviceStore = defineStore('device', () => {
     }
   }
 
-  async function addDevice(id: string) {
+  async function addDevice(name: string) {
     try {
-      await apiAddDevice(id)
+      await apiAddDevice(name)
       await fetchDevices()
     } catch (e) {
       console.error('Failed to add device', e)

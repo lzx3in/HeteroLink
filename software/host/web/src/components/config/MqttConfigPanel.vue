@@ -59,12 +59,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useConfigStore } from '@/stores/configStore'
-import type { MqttConfig } from '@/types'
+import type { MqttFormConfig } from '@/types'
 
 const configStore = useConfigStore()
 const loading = ref(false)
 
-const defaultConfig: MqttConfig = {
+const defaultConfig: MqttFormConfig = {
   broker_url: 'mqtt://localhost:1883',
   client_id: 'heterolink-host',
   username: '',
@@ -73,7 +73,7 @@ const defaultConfig: MqttConfig = {
   keep_alive: 60,
 }
 
-const form = ref<MqttConfig>({ ...defaultConfig })
+const form = ref<MqttFormConfig>({ ...defaultConfig })
 
 onMounted(async () => {
   await configStore.fetchConfig()

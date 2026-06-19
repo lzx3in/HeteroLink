@@ -30,44 +30,52 @@ export function useWebSocket() {
   function handleMessage(msg: WsMessage) {
     switch (msg.type) {
       case 'Telemetry':
-        telemetryStore.pushTelemetry(msg.data.device_id, msg.data)
+        telemetryStore.pushTelemetry(msg.data.device_id, {
+          timestamp: msg.data.timestamp,
+          channels: msg.data.channels,
+        })
         break
       case 'DeviceListChanged':
         deviceStore.updateFromWs(msg.data.devices)
-        if (msg.data.stats) {
-          for (const [id, stats] of Object.entries(msg.data.stats)) {
-            telemetryStore.updateStats(id, stats as any)
-          }
-        }
+        break
+      case 'DeviceStatusChanged':
+        // 设备状态变更会通过后续的 DeviceListChanged 更新列表
+        logStore.addLog('info',
+          `设备 ${msg.data.device_id} ${msg.data.connected ? (msg.data.online ? '上线' : '已连接') : '离线'}`)
         break
       case 'StatsUpdated':
         telemetryStore.updateStats(msg.data.device_id, msg.data.stats)
         break
-      case 'AlarmTriggered':
-        alarmStore.onAlarmTriggered(msg.data.device_id, msg.data.alarm)
-        logStore.addLog('warn', `告警触发: ${msg.data.device_id} CH${msg.data.alarm.channel}`)
+      case 'AlarmTriggered': {
+        const alarm = msg.data.alarm
+        alarmStore.onAlarmTriggered(alarm.device_id, alarm)
+        logStore.addLog('warn', `告警触发: ${alarm.device_id} CH${alarm.channel_id}`)
         break
+      }
       case 'AlarmsChanged':
-        if (msg.data.device_id) {
-          alarmStore.fetchAlarms(msg.data.device_id)
-        }
+        alarmStore.updateAlarms(msg.data.device_id, msg.data.alarms)
         break
       case 'MqttStatusChanged':
         appStore.mqttConnected = msg.data.connected
-        configStore.mqttConfig = msg.data.config || configStore.mqttConfig
+        configStore.mqttConnected = msg.data.connected
         logStore.addLog(msg.data.connected ? 'info' : 'warn',
           msg.data.connected ? 'MQTT 已连接' : 'MQTT 已断开')
         break
       case 'CommandResponse':
-        appStore.lastCommandResponse = msg.data
-        logStore.addLog('info', `命令响应: ${msg.data.device_id}: ${msg.data.message}`)
+        appStore.lastCommandResponse = {
+          device_id: msg.data.device_id,
+          response: msg.data.response,
+        }
+        logStore.addLog('info', `命令响应: ${msg.data.device_id}: ${msg.data.response}`)
         break
       case 'Log':
-        logStore.addLog(msg.data.level || 'info', msg.data.message)
+        logStore.addLog('info', msg.data.message)
         break
       case 'RecordingChanged':
         appStore.recording = msg.data.recording
-        appStore.recordingDeviceId = msg.data.device_id || null
+        if (!msg.data.recording) {
+          appStore.recordingDeviceId = null
+        }
         logStore.addLog('info', msg.data.recording ? '录制已开始' : '录制已停止')
         break
       case 'Error':

@@ -19,7 +19,7 @@
       >
         <div class="device-info">
           <span class="status-dot" :class="statusClass(device)"></span>
-          <span class="device-name">{{ device.id }}</span>
+          <span class="device-name">{{ device.name || device.id }}</span>
         </div>
         <div class="device-meta">
           <el-tag size="small" :type="device.connected ? 'success' : 'info'" effect="plain">
@@ -45,10 +45,10 @@
     </el-scrollbar>
 
     <el-dialog v-model="showAddDialog" title="添加设备" width="320px" :append-to-body="true">
-      <el-input v-model="newDeviceId" placeholder="输入设备 ID" @keyup.enter="handleAdd" />
+      <el-input v-model="newDeviceName" placeholder="输入设备名称" @keyup.enter="handleAdd" />
       <template #footer>
         <el-button @click="showAddDialog = false">取消</el-button>
-        <el-button type="primary" :disabled="!newDeviceId.trim()" @click="handleAdd">
+        <el-button type="primary" :disabled="!newDeviceName.trim()" @click="handleAdd">
           添加
         </el-button>
       </template>
@@ -64,19 +64,19 @@ import type { DeviceInfo } from '@/types'
 
 const deviceStore = useDeviceStore()
 const showAddDialog = ref(false)
-const newDeviceId = ref('')
+const newDeviceName = ref('')
 
 function statusClass(device: DeviceInfo) {
   if (!device.connected) return 'offline'
-  if (device.alarm_active) return 'alarm'
+  if (!device.online) return 'offline'
   return 'online'
 }
 
 function handleAdd() {
-  const id = newDeviceId.value.trim()
-  if (id) {
-    deviceStore.addDevice(id)
-    newDeviceId.value = ''
+  const name = newDeviceName.value.trim()
+  if (name) {
+    deviceStore.addDevice(name)
+    newDeviceName.value = ''
     showAddDialog.value = false
   }
 }

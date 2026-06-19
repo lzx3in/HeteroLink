@@ -8,22 +8,22 @@
       </el-table-column>
       <el-table-column label="CH1" width="100">
         <template #default="{ row }">
-          <span class="mono-data ch1">{{ formatValue(row.ch1) }}</span>
+          <span class="mono-data ch1">{{ formatValue(row.channels?.[0]) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="CH2" width="100">
         <template #default="{ row }">
-          <span class="mono-data ch2">{{ formatValue(row.ch2) }}</span>
+          <span class="mono-data ch2">{{ formatValue(row.channels?.[1]) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="CH3" width="100">
         <template #default="{ row }">
-          <span class="mono-data ch3">{{ formatValue(row.ch3) }}</span>
+          <span class="mono-data ch3">{{ formatValue(row.channels?.[2]) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="CH4" width="100">
         <template #default="{ row }">
-          <span class="mono-data ch4">{{ formatValue(row.ch4) }}</span>
+          <span class="mono-data ch4">{{ formatValue(row.channels?.[3]) }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -46,11 +46,11 @@ const tableData = computed(() => {
   return [...(telemetryStore.dataByDevice.get(id) || [])].reverse().slice(0, 50)
 })
 
-function formatTime(ts: string): string {
+function formatTime(ts: number): string {
   try {
     return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false })
   } catch {
-    return ts
+    return String(ts)
   }
 }
 

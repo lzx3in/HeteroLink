@@ -9,7 +9,7 @@ export const useAppStore = defineStore('app', () => {
   const recording = ref(false)
   const recordingDeviceId = ref<string | null>(null)
   const statusMessage = ref('就绪')
-  const lastCommandResponse = ref<any>(null)
+  const lastCommandResponse = ref<{ device_id: string; response: string } | null>(null)
 
   async function startRecording(deviceId: string) {
     try {
@@ -49,9 +49,9 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function sendStartCommand(deviceId: string, sampleRate: number, channels: number[]) {
+  async function sendStartCommand(deviceId: string, sampleRate: number) {
     try {
-      await apiSendStartCommand(deviceId, sampleRate, channels)
+      await apiSendStartCommand(deviceId, sampleRate)
     } catch (e) {
       console.error('Failed to send start command', e)
     }
@@ -65,9 +65,9 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function sendGpioCommand(deviceId: string, pin: number, value: boolean) {
+  async function sendGpioCommand(deviceId: string, channel: number, value: boolean) {
     try {
-      await apiSendGpioCommand(deviceId, pin, value)
+      await apiSendGpioCommand(deviceId, channel, value)
     } catch (e) {
       console.error('Failed to send GPIO command', e)
     }

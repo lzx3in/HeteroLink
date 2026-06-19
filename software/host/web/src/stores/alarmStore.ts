@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { AlarmRecord, AlarmConfig } from '@/types'
+import type { AlarmRecord, AlarmConfigRequest } from '@/types'
 import { fetchAlarms as apiFetchAlarms, configureAlarm as apiConfigureAlarm, acknowledgeAlarm as apiAcknowledgeAlarm, clearAlarms as apiClearAlarms } from '@/api/alarm'
 
 export const useAlarmStore = defineStore('alarm', () => {
@@ -23,17 +23,17 @@ export const useAlarmStore = defineStore('alarm', () => {
     }
   }
 
-  async function configureAlarm(deviceId: string, configs: AlarmConfig[]) {
+  async function configureAlarm(deviceId: string, config: AlarmConfigRequest) {
     try {
-      await apiConfigureAlarm(deviceId, configs)
+      await apiConfigureAlarm(deviceId, config)
     } catch (e) {
       console.error('Failed to configure alarm', e)
     }
   }
 
-  async function acknowledgeAlarm(deviceId: string, channel: number) {
+  async function acknowledgeAlarm(deviceId: string, channelId: number) {
     try {
-      await apiAcknowledgeAlarm(deviceId, channel)
+      await apiAcknowledgeAlarm(deviceId, channelId)
       await fetchAlarms(deviceId)
     } catch (e) {
       console.error('Failed to acknowledge alarm', e)
@@ -56,6 +56,10 @@ export const useAlarmStore = defineStore('alarm', () => {
     alarmsByDevice.value.get(deviceId)!.push(alarm)
   }
 
+  function updateAlarms(deviceId: string, alarms: AlarmRecord[]) {
+    alarmsByDevice.value.set(deviceId, alarms)
+  }
+
   return {
     alarmsByDevice,
     allAlarms,
@@ -64,5 +68,6 @@ export const useAlarmStore = defineStore('alarm', () => {
     acknowledgeAlarm,
     clearAlarms,
     onAlarmTriggered,
+    updateAlarms,
   }
 })

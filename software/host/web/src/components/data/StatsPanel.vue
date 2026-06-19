@@ -3,14 +3,14 @@
     <div v-if="!selectedId" class="empty-hint">请选择设备</div>
     <template v-else>
       <div class="stats-grid">
-        <div v-for="(stat, idx) in stats" :key="idx" class="stat-card" :class="'ch' + (idx + 1)">
+        <div v-for="stat in stats" :key="stat.channel_id" class="stat-card" :class="'ch' + stat.channel_id">
           <div class="stat-header">
-            <span class="stat-label">{{ stat.name || `CH${idx + 1}` }}</span>
+            <span class="stat-label">CH{{ stat.channel_id }}</span>
           </div>
           <div class="stat-values">
             <div class="stat-row">
-              <span class="stat-key">当前</span>
-              <span class="stat-val current">{{ fmt(stat.current) }}</span>
+              <span class="stat-key">平均</span>
+              <span class="stat-val current">{{ fmt(stat.avg) }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-key">最小</span>
@@ -21,8 +21,12 @@
               <span class="stat-val">{{ fmt(stat.max) }}</span>
             </div>
             <div class="stat-row">
-              <span class="stat-key">平均</span>
-              <span class="stat-val">{{ fmt(stat.mean) }}</span>
+              <span class="stat-key">RMS</span>
+              <span class="stat-val">{{ fmt(stat.rms) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-key">采样数</span>
+              <span class="stat-val">{{ stat.sample_count }}</span>
             </div>
           </div>
         </div>

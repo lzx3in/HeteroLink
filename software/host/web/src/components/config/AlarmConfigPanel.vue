@@ -10,11 +10,11 @@
 
         <template v-if="channelEnabled[ch - 1]">
           <el-form size="small" label-width="60px" class="ch-form">
-            <el-form-item label="警告阈值">
-              <el-input-number v-model="warnings[ch - 1]" :precision="2" :step="0.1" />
+            <el-form-item label="下限">
+              <el-input-number v-model="lowerLimits[ch - 1]" :precision="2" :step="0.1" />
             </el-form-item>
-            <el-form-item label="严重阈值">
-              <el-input-number v-model="criticals[ch - 1]" :precision="2" :step="0.1" />
+            <el-form-item label="上限">
+              <el-input-number v-model="upperLimits[ch - 1]" :precision="2" :step="0.1" />
             </el-form-item>
           </el-form>
         </template>
@@ -33,7 +33,7 @@
 import { ref, computed, watch } from 'vue'
 import { useDeviceStore } from '@/stores/deviceStore'
 import { useAlarmStore } from '@/stores/alarmStore'
-import type { AlarmConfig } from '@/types'
+import type { AlarmConfigRequest } from '@/types'
 
 const deviceStore = useDeviceStore()
 const alarmStore = useAlarmStore()
@@ -42,8 +42,8 @@ const loading = ref(false)
 const selectedId = computed(() => deviceStore.selectedDeviceId)
 
 const channelEnabled = ref([true, true, true, true])
-const warnings = ref([0, 0, 0, 0])
-const criticals = ref([0, 0, 0, 0])
+const lowerLimits = ref([0, 0, 0, 0])
+const upperLimits = ref([100, 100, 100, 100])
 
 watch(selectedId, async (id) => {
   if (id) {
@@ -55,25 +55,18 @@ async function handleSave() {
   if (!selectedId.value) return
   loading.value = true
   try {
-    const configs: AlarmConfig[] = []
+    // 逐通道发送告警配置（后端每次接受单个 AlarmConfigRequest）
     for (let i = 0; i < 4; i++) {
-      if (channelEnabled.value[i]) {
-        configs.push({
-          channel: i + 1,
-          warning_threshold: warnings.value[i],
-          critical_threshold: criticals.value[i],
-          enabled: true,
-        })
-      } else {
-        configs.push({
-          channel: i + 1,
-          warning_threshold: 0,
-          critical_threshold: 0,
-          enabled: false,
-        })
+      const config: AlarmConfigRequest = {
+        channel_id: i + 1,
+        lower_limit: lowerLimits.value[i],
+        upper_limit: upperLimits.value[i],
+        lower_enabled: channelEnabled.value[i],
+        upper_enabled: channelEnabled.value[i],
+        enabled: channelEnabled.value[i],
       }
+      await alarmStore.configureAlarm(selectedId.value, config)
     }
-    await alarmStore.configureAlarm(selectedId.value, configs)
   } finally {
     loading.value = false
   }

@@ -8,10 +8,10 @@ export interface RecordingStatus {
   samples_recorded: number
 }
 
-export function startRecording(deviceId: string, filename?: string) {
+export function startRecording(deviceId: string, path?: string) {
   return api.post<ApiResponse<void>>('/recording/start', {
     device_id: deviceId,
-    filename,
+    path,
   })
 }
 

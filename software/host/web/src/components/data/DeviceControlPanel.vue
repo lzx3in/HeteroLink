@@ -14,15 +14,6 @@
           <span class="unit">Hz</span>
         </el-form-item>
 
-        <el-form-item label="通道">
-          <el-checkbox-group v-model="selectedChannels">
-            <el-checkbox :value="1">CH1</el-checkbox>
-            <el-checkbox :value="2">CH2</el-checkbox>
-            <el-checkbox :value="3">CH3</el-checkbox>
-            <el-checkbox :value="4">CH4</el-checkbox>
-          </el-checkbox-group>
-        </el-form-item>
-
         <el-form-item>
           <el-button-group>
             <el-button type="success" @click="handleStart">
@@ -36,8 +27,8 @@
 
         <el-divider>GPIO 控制</el-divider>
 
-        <el-form-item label="GPIO 引脚">
-          <el-input-number v-model="gpioPin" :min="0" :max="39" />
+        <el-form-item label="GPIO 通道">
+          <el-input-number v-model="gpioChannel" :min="0" :max="39" />
         </el-form-item>
 
         <el-form-item>
@@ -71,12 +62,11 @@ const selectedId = computed(() => deviceStore.selectedDeviceId)
 const lastResponse = computed(() => appStore.lastCommandResponse)
 
 const sampleRate = ref(1000)
-const selectedChannels = ref<number[]>([1, 2, 3, 4])
-const gpioPin = ref(2)
+const gpioChannel = ref(2)
 
 function handleStart() {
   if (!selectedId.value) return
-  appStore.sendStartCommand(selectedId.value, sampleRate.value, selectedChannels.value)
+  appStore.sendStartCommand(selectedId.value, sampleRate.value)
 }
 
 function handleStop() {
@@ -86,7 +76,7 @@ function handleStop() {
 
 function handleGpio(value: boolean) {
   if (!selectedId.value) return
-  appStore.sendGpioCommand(selectedId.value, gpioPin.value, value)
+  appStore.sendGpioCommand(selectedId.value, gpioChannel.value, value)
 }
 </script>
 

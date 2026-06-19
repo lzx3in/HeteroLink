@@ -1,8 +1,8 @@
 import api from './index'
-import type { ApiResponse, MqttConfig } from '@/types'
+import type { ApiResponse, MqttConnectRequest } from '@/types'
 
-export function connectMqtt(config: MqttConfig) {
-  return api.post<ApiResponse<void>>('/mqtt/connect', config)
+export function connectMqtt(req: MqttConnectRequest) {
+  return api.post<ApiResponse<void>>('/mqtt/connect', req)
 }
 
 export function disconnectMqtt() {
@@ -10,5 +10,5 @@ export function disconnectMqtt() {
 }
 
 export function fetchMqttStatus() {
-  return api.get<ApiResponse<{ connected: boolean; config: MqttConfig | null }>>('/mqtt/status')
+  return api.get<ApiResponse<{ connected: boolean }>>('/mqtt/status')
 }
