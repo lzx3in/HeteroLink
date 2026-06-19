@@ -202,11 +202,50 @@ pub fn setup_callbacks(
     {
         let ui_weak = ui.as_weak();
         let cfg = config_manager.clone();
+        let alarms = alarm_system.clone();
         ui.on_save_config(move || {
             let ui_weak = ui_weak.clone();
             let cfg = cfg.clone();
+            let alarms = alarms.clone();
             slint::spawn_local(async move {
                 if let Some(ui) = ui_weak.upgrade() {
+                    // Sync alarm settings from UI to ConfigManager
+                    {
+                        let mut config = cfg.lock().await;
+                        let alarm_cfg = config.get_mut();
+                        alarm_cfg.alarm.enabled = ui.get_alarm_enabled();
+                        alarm_cfg.alarm.lower_limit = ui.get_alarm_lower_int() as f32;
+                        alarm_cfg.alarm.upper_limit = ui.get_alarm_upper_int() as f32;
+                    }
+
+                    // Apply alarm thresholds to AlarmSystem for selected device
+                    let idx = ui.get_selected_device_index();
+                    let devices = ui.get_devices();
+                    if idx >= 0 {
+                        if let Some(device) = devices.iter().nth(idx as usize) {
+                            let device_id = device.id.to_string();
+                            let enabled = ui.get_alarm_enabled();
+                            let lower = ui.get_alarm_lower_int() as f32;
+                            let upper = ui.get_alarm_upper_int() as f32;
+
+                            for ch in 0..4 {
+                                let config = crate::core::AlarmConfig {
+                                    channel_id: ch,
+                                    lower_limit: lower,
+                                    upper_limit: upper,
+                                    lower_enabled: enabled,
+                                    upper_enabled: enabled,
+                                    level: crate::core::AlarmLevel::Warning,
+                                    enabled,
+                                };
+                                alarms.configure_alarm(&device_id, config).await;
+                            }
+                            add_log_message(&ui, &format!(
+                                "告警配置已应用 -> {} (下限: {}, 上限: {})",
+                                device_id, lower, upper));
+                        }
+                    }
+
                     if let Err(e) = cfg.lock().await.save(None) {
                         add_log_message(&ui, &format!("保存配置失败: {}", e));
                     } else {
