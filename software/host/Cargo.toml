@@ -13,9 +13,6 @@ slint = "1.5"
 tokio = { version = "1.37", features = ["full", "sync", "rt-multi-thread"] }
 futures = "0.3"
 
-# Serial communication
-serialport = "4.3"
-
 # MQTT
 rumqttc = "0.24"
 

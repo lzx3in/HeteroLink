@@ -21,52 +21,6 @@ pub fn setup_callbacks(
     device_event_tx: mpsc::Sender<DeviceEvent>,
     mqtt_event_tx: mpsc::Sender<MqttEvent>,
 ) {
-    // Connect UART
-    {
-        let ui_weak = ui.as_weak();
-        let dm = device_manager.clone();
-        let tx = device_event_tx.clone();
-        ui.on_connect_uart(move || {
-            let ui_weak = ui_weak.clone();
-            let dm = dm.clone();
-            let tx = tx.clone();
-            slint::spawn_local(async move {
-                if let Some(ui) = ui_weak.upgrade() {
-                    let port_idx = ui.get_uart_port_index() as usize;
-                    let baud_idx = ui.get_uart_baud_index() as usize;
-                    let ports = ui.get_available_ports();
-                    let port = ports.iter().nth(port_idx).map(|s| s.to_string()).unwrap_or_default();
-                    let baud_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
-                    let baud = baud_rates.get(baud_idx).copied().unwrap_or(9600);
-                    add_log_message(&ui, &format!("连接 UART: {} @ {}", port, baud));
-                    
-                    let device_id = format!("uart_{}", port.replace("/dev/", ""));
-                    let config = crate::protocol::UartConfig {
-                        port_name: port.clone(),
-                        baud_rate: baud,
-                        data_bits: 8,
-                        stop_bits: 1,
-                        parity: 0,
-                    };
-                    
-                    // 先添加设备（如果不存在）
-                    let mut dm_lock = dm.lock().await;
-                    if dm_lock.get_device(&device_id).await.is_none() {
-                        let mut device = crate::core::DeviceInfo::new(device_id.clone(), format!("UART {}", port));
-                        device.port = port.clone();
-                        let _ = dm_lock.add_device(device).await;
-                    }
-                    
-                    // 连接 UART
-                    match dm_lock.connect_device_uart(&device_id, config, tx).await {
-                        Ok(_) => add_log_message(&ui, &format!("已连接: {}", device_id)),
-                        Err(e) => add_log_message(&ui, &format!("连接失败: {}", e)),
-                    }
-                }
-            }).unwrap();
-        });
-    }
-
     // Disconnect device
     {
         let ui_weak = ui.as_weak();

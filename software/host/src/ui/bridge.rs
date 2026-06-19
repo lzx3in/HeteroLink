@@ -81,14 +81,6 @@ impl UiBridge {
     }
 
     #[allow(dead_code)]
-    pub fn update_available_ports(&self, ports: &[String]) {
-        let model = VecModel::from(
-            ports.iter().map(|p| SharedString::from(p.clone())).collect::<Vec<_>>()
-        );
-        self.ui.set_available_ports(ModelRc::new(model));
-    }
-
-    #[allow(dead_code)]
     pub fn add_log(&self, message: &str) {
         let current = self.ui.get_log_messages();
         let mut logs: Vec<SharedString> = current.iter().collect();

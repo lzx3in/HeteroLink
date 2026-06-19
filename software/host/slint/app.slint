@@ -55,13 +55,7 @@ export component AppUI inherits Window {
     in property <[TelemetrySnapshot]> telemetry-data;
     in property <[StatsItem]> channel-stats;
     in property <[AlarmItem]> alarm-records;
-    in property <[string]> available-ports;
     in property <[string]> log-messages;
-
-    // === UART 配置 ===
-    in-out property <int> uart-port-index: 0;
-    in-out property <int> uart-baud-index: 4;  // 默认 921600
-    in property <[int]> baud-rates: [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
     // === MQTT 配置 ===
     in-out property <string> mqtt-host: "localhost";
@@ -86,7 +80,6 @@ export component AppUI inherits Window {
     in-out property <bool> recording: false;
 
     // === 回调 ===
-    callback connect-uart();
     callback disconnect-device(int);
     callback connect-mqtt();
     callback disconnect-mqtt();
@@ -121,12 +114,7 @@ export component AppUI inherits Window {
                 spacing: 6px;
                 alignment: start;
 
-                Button { text: "🔌 连接"; clicked => { connect-uart(); } }
-                Button { text: "断开"; clicked => { if selected-device-index >= 0 { disconnect-device(selected-device-index); } } }
-
-                Rectangle { width: 12px; }
-
-                Button { text: "☁ MQTT"; clicked => { connect-mqtt(); } }
+                Button { text: "☁ MQTT 连接"; clicked => { connect-mqtt(); } }
                 Button { text: "断开 MQTT"; clicked => { disconnect-mqtt(); } }
 
                 Rectangle { width: 12px; }
@@ -156,27 +144,6 @@ export component AppUI inherits Window {
                     spacing: 8px;
 
                     Text { text: "📡 设备列表"; font-size: 15px; font-weight: 700; color: #e0e0e0; }
-
-                    // 串口选择
-                    GroupBox {
-                        title: "UART 配置";
-
-                        VerticalLayout {
-                            spacing: 4px;
-
-                            Text { text: "串口:"; color: #aaa; }
-                            ComboBox {
-                                model: available-ports;
-                                current-index <=> uart-port-index;
-                            }
-
-                            Text { text: "波特率:"; color: #aaa; }
-                            ComboBox {
-                                model: ["9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"];
-                                current-index <=> uart-baud-index;
-                            }
-                        }
-                    }
 
                     // 设备列表
                     ScrollView {

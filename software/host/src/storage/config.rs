@@ -3,19 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::info;
 
-/// UART 配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UartConfigData {
-    pub port_name: String,
-    pub baud_rate: u32,
-}
-
-impl Default for UartConfigData {
-    fn default() -> Self {
-        Self { port_name: String::new(), baud_rate: 921600 }
-    }
-}
-
 /// MQTT 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MqttConfigData {
@@ -90,7 +77,6 @@ impl Default for UiConfig {
 /// 应用配置
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
-    pub uart: UartConfigData,
     pub mqtt: MqttConfigData,
     pub data: DataConfig,
     pub alarm: AlarmConfigData,

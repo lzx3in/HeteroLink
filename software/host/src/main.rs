@@ -72,13 +72,6 @@ async fn main() -> Result<()> {
         mqtt_event_tx.clone(),
     );
 
-    // Update available ports
-    if let Ok(ports) = serialport::available_ports() {
-        let port_names: Vec<slint::SharedString> = ports.iter().map(|p| p.port_name.clone().into()).collect();
-        ui.set_available_ports(slint::ModelRc::new(slint::VecModel::from(port_names)));
-        info!("Available ports: {:?}", ports.iter().map(|p| &p.port_name).collect::<Vec<_>>());
-    }
-
     // Device event handler (background tokio task, posts to UI thread)
     let dm_dev = device_manager.clone();
     let dp_dev = data_processor.clone();

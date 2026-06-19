@@ -1,4 +1,4 @@
-use crate::protocol::{UartChannel, UartConfig, UartEvent, MqttChannel, TelemetryData};
+use crate::protocol::{MqttChannel, TelemetryData};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -46,7 +46,6 @@ pub enum DeviceEvent {
 /// 设备管理器
 pub struct DeviceManager {
     devices: Arc<Mutex<HashMap<String, DeviceInfo>>>,
-    uart_channels: Arc<Mutex<HashMap<String, UartChannel>>>,
     mqtt_channel: Option<Arc<Mutex<MqttChannel>>>,
     heartbeat_tx: Option<mpsc::Sender<String>>,
 }
@@ -55,7 +54,6 @@ impl DeviceManager {
     pub fn new() -> Self {
         Self {
             devices: Arc::new(Mutex::new(HashMap::new())),
-            uart_channels: Arc::new(Mutex::new(HashMap::new())),
             mqtt_channel: None,
             heartbeat_tx: None,
         }
@@ -88,100 +86,10 @@ impl DeviceManager {
         Ok(())
     }
 
-    pub async fn connect_device_uart(
-        &self,
-        device_id: &str,
-        config: UartConfig,
-        event_tx: mpsc::Sender<DeviceEvent>,
-    ) -> Result<()> {
-        {
-            let devices = self.devices.lock().await;
-            if !devices.contains_key(device_id) {
-                return Err(anyhow::anyhow!("Device not found: {}", device_id));
-            }
-        }
-
-        let mut uart_channel = UartChannel::new(config);
-        let (uart_event_tx, mut uart_event_rx) = mpsc::channel::<UartEvent>(100);
-        uart_channel.connect(uart_event_tx)?;
-
-        {
-            let mut devices = self.devices.lock().await;
-            if let Some(device) = devices.get_mut(device_id) {
-                device.connected = true;
-                device.connection_type = "UART".to_string();
-            }
-        }
-
-        {
-            let mut uart_channels = self.uart_channels.lock().await;
-            uart_channels.insert(device_id.to_string(), uart_channel);
-        }
-
-        info!("Device connected via UART: {}", device_id);
-
-        // 转发 UART 事件
-        let devices = self.devices.clone();
-        tokio::spawn(async move {
-            while let Some(event) = uart_event_rx.recv().await {
-                match event {
-                    UartEvent::TelemetryReceived(dev_id, data) => {
-                        let dev_id_str = dev_id.to_string();
-                        {
-                            let mut devices = devices.lock().await;
-                            if let Some(device) = devices.get_mut(&dev_id_str) {
-                                device.last_seen = SystemTime::now()
-                                    .duration_since(UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_millis() as u64;
-                            }
-                        }
-                        let _ = event_tx.send(DeviceEvent::TelemetryReceived {
-                            device_id: dev_id_str,
-                            data,
-                        }).await;
-                    }
-                    UartEvent::ErrorReceived(dev_id, err) => {
-                        let _ = event_tx.send(DeviceEvent::DeviceError {
-                            device_id: dev_id.to_string(),
-                            error: format!("Error code: {}", err),
-                        }).await;
-                    }
-                    UartEvent::Error(msg) => {
-                        error!("UART error: {}", msg);
-                    }
-                    UartEvent::Connected(port) => {
-                        info!("UART connected: {}", port);
-                    }
-                    UartEvent::Disconnected(port) => {
-                        info!("UART disconnected: {}", port);
-                        let mut devices = devices.lock().await;
-                        for device in devices.values_mut() {
-                            if device.connection_type == "UART" {
-                                device.connected = false;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        Ok(())
-    }
-
     pub async fn disconnect_device(&self, device_id: &str) -> Result<()> {
-        {
-            let mut uart_channels = self.uart_channels.lock().await;
-            if let Some(mut channel) = uart_channels.remove(device_id) {
-                channel.disconnect();
-            }
-        }
-
-        {
-            let mut devices = self.devices.lock().await;
-            if let Some(device) = devices.get_mut(device_id) {
-                device.connected = false;
-            }
+        let mut devices = self.devices.lock().await;
+        if let Some(device) = devices.get_mut(device_id) {
+            device.connected = false;
         }
 
         info!("Device disconnected: {}", device_id);
@@ -227,20 +135,15 @@ impl DeviceManager {
 
         // 订阅该设备的命令和状态
         if let Some(mqtt) = &self.mqtt_channel {
-            let mqtt = mqtt.lock().await;
+            let _mqtt = mqtt.lock().await;
         }
 
         info!("MQTT device added: {}", device_id);
         Ok(())
     }
 
-    pub async fn send_heartbeat(&self, device_id: &str) -> Result<()> {
-        let uart_channels = self.uart_channels.lock().await;
-        if let Some(channel) = uart_channels.get(device_id) {
-            if let Ok(dev_id) = device_id.parse::<u8>() {
-                channel.send_heartbeat(dev_id)?;
-            }
-        }
+    pub async fn send_heartbeat(&self, _device_id: &str) -> Result<()> {
+        // 心跳通过 MQTT 通道处理，此处无需操作
         Ok(())
     }
 }

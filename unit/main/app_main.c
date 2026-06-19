@@ -10,8 +10,6 @@
  * 功能：
  * - WiFi 连接管理
  * - MQTT5 远端通道（设备状态上云、远程控制、告警推送）
- * - UART 自定义二进制协议（近端通道）
- * - SPI+DMA 高速数据传输（板间通道）
  * - ADC/GPIO 双模点测
  */
 
@@ -31,7 +29,6 @@
 
 // 组件头文件
 #include "spi_dma.h"
-#include "uart_protocol.h"
 #include "adc_gpio_probe.h"
 
 static const char *TAG = "heterolink";
@@ -39,7 +36,6 @@ static const char *TAG = "heterolink";
 // 全局句柄
 static esp_mqtt_client_handle_t mqtt_client = NULL;
 static spi_dma_device_t spi_dev;
-static uart_protocol_device_t uart_dev;
 static adc_gpio_probe_device_t probe_dev;
 
 // 系统状态
@@ -258,17 +254,6 @@ static void components_init(void)
 {
     esp_err_t ret;
     
-    // 初始化 UART 协议（近端通道）
-#if CONFIG_HETERO_ENABLE_UART_PROTOCOL
-    uart_protocol_config_t uart_config = UART_PROTOCOL_DEFAULT_CONFIG();
-    ret = uart_protocol_init(&uart_config, &uart_dev);
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "UART Protocol initialized");
-    } else {
-        ESP_LOGE(TAG, "Failed to initialize UART Protocol: %s", esp_err_to_name(ret));
-    }
-#endif
-    
     // 初始化 SPI+DMA（板间通道）
 #if CONFIG_HETERO_ENABLE_SPI_DMA
     spi_dma_config_t spi_config = SPI_DMA_DEFAULT_CONFIG();
@@ -321,36 +306,9 @@ static void main_loop_task(void *pvParameters)
                 
                 // 发布到 MQTT
                 mqtt_publish_telemetry(channels, count);
-                
-                // 同时通过 UART 发送
-#if CONFIG_HETERO_ENABLE_UART_PROTOCOL
-                uart_protocol_send_telemetry(&uart_dev, current_time, channels, count);
-#endif
             }
 #endif
         }
-        
-        // 处理 UART 命令
-#if CONFIG_HETERO_ENABLE_UART_PROTOCOL
-        if (uart_protocol_receive(&uart_dev, 0) == ESP_OK) {
-            uint8_t cmd;
-            const uint8_t *payload;
-            size_t length;
-            
-            if (uart_protocol_parse(&uart_dev, &cmd, &payload, &length) == ESP_OK) {
-                ESP_LOGI(TAG, "UART command: 0x%02X, length=%zu", cmd, length);
-                
-                // 处理命令
-                if (cmd == UART_CMD_HEARTBEAT) {
-                    uart_protocol_send_heartbeat(&uart_dev);
-                } else if (cmd == UART_CMD_START_ACQ) {
-                    adc_gpio_probe_start_sampling(&probe_dev);
-                } else if (cmd == UART_CMD_STOP_ACQ) {
-                    adc_gpio_probe_stop_sampling(&probe_dev);
-                }
-            }
-        }
-#endif
         
         // 短暂延迟
         vTaskDelay(pdMS_TO_TICKS(10));
