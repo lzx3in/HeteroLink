@@ -81,12 +81,17 @@ jobs:
           cd software/host
           cargo build --release --target ${{ matrix.target }}
           BINARY="target/${{ matrix.target }}/release/heterolink-host${{ matrix.ext }}"
-          ARCHIVE_NAME="heterolink-host-${{ matrix.target }}"
-          mkdir -p "release/${ARCHIVE_NAME}"
-          cp "$BINARY" "release/${ARCHIVE_NAME}/"
-          cp -r web/dist "release/${ARCHIVE_NAME}/web/"
-          cd release
-          tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+          ASSET_NAME="heterolink-host-${{ matrix.target }}"
+          mkdir -p release
+          # self_update 包：二进制在根目录
+          cp "$BINARY" "release/heterolink-host${{ matrix.ext }}"
+          cd release && tar czf "${ASSET_NAME}.tar.gz" "heterolink-host${{ matrix.ext }}" && cd ..
+          # 完整部署包：二进制 + web/dist
+          FULL_NAME="${ASSET_NAME}-full"
+          mkdir -p "release/${FULL_NAME}/web"
+          cp "$BINARY" "release/${FULL_NAME}/"
+          cp -r web/dist "release/${FULL_NAME}/web/"
+          cd release && tar czf "${FULL_NAME}.tar.gz" "${FULL_NAME}"
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -95,19 +100,28 @@ jobs:
           cd software/host
           cargo build --release --target ${{ matrix.target }}
           $BINARY = "target/${{ matrix.target }}/release/heterolink-host.exe"
-          $ARCHIVE_NAME = "heterolink-host-${{ matrix.target }}"
-          New-Item -ItemType Directory -Path "release/$ARCHIVE_NAME/web" -Force
-          Copy-Item $BINARY "release/$ARCHIVE_NAME/"
-          Copy-Item -Recurse "web/dist/*" "release/$ARCHIVE_NAME/web/"
+          $ASSET_NAME = "heterolink-host-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path "release" -Force
+          # self_update 包
+          Copy-Item $BINARY "release/heterolink-host.exe"
           cd release
-          Compress-Archive -Path $ARCHIVE_NAME -DestinationPath "$ARCHIVE_NAME.zip"
+          Compress-Archive -Path "heterolink-host.exe" -DestinationPath "$ASSET_NAME.zip" -Force
+          cd ..
+          # 完整部署包
+          $FULL_NAME = "$ASSET_NAME-full"
+          New-Item -ItemType Directory -Path "release/$FULL_NAME/web" -Force
+          Copy-Item $BINARY "release/$FULL_NAME/"
+          Copy-Item -Recurse "web/dist/*" "release/$FULL_NAME/web/"
+          cd release
+          Compress-Archive -Path $FULL_NAME -DestinationPath "$FULL_NAME.zip" -Force
 
-      - name: Upload release asset
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: |
             software/host/release/heterolink-host-${{ matrix.target }}.${{ matrix.archive }}
+            software/host/release/heterolink-host-${{ matrix.target }}-full.${{ matrix.archive }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -132,8 +146,8 @@ jobs:
             const assetCount = release.assets.length;
             core.info(`Release has ${assetCount} asset(s)`);
 
-            if (assetCount < 4) {
-              core.setFailed(`Expected at least 4 assets, found ${assetCount}`);
+            if (assetCount < 8) {
+              core.setFailed(`Expected at least 8 assets, found ${assetCount}`);
               return;
             }
 
