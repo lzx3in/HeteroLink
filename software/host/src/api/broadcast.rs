@@ -62,6 +62,11 @@ pub enum WsMessage {
     Error {
         message: String,
     },
+    /// 发现新版本
+    UpdateAvailable {
+        version: String,
+        body: String,
+    },
 }
 
 impl WsMessage {
@@ -114,6 +119,10 @@ impl WsMessage {
             },
             DomainEvent::Error { message } => WsMessage::Error {
                 message: message.clone(),
+            },
+            DomainEvent::UpdateAvailable { version, body } => WsMessage::UpdateAvailable {
+                version: version.clone(),
+                body: body.clone(),
             },
         })
     }

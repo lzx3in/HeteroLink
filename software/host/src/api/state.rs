@@ -8,6 +8,7 @@ use crate::services::{
     mqtt_service::MqttService,
     recording_service::RecordingService,
     telemetry_service::TelemetryService,
+    updater_service::UpdaterService,
 };
 
 /// 全局共享状态，注入到所有 axum handler
@@ -23,5 +24,6 @@ pub struct AppState {
     pub config_service: ConfigService,
     pub recording_service: RecordingService,
     pub export_service: ExportService,
+    pub updater_service: UpdaterService,
     pub event_bus: EventBus,
 }

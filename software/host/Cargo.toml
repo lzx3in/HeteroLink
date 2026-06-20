@@ -46,5 +46,8 @@ uuid = { version = "1.8", features = ["v4"] }
 # Fast random number generation (for simulation)
 fastrand = "2.0"
 
+# Self-update from GitHub releases
+self_update = { version = "0.41", features = ["archive-tar", "archive-zip", "compression-flate2", "compression-zip-deflate"] }
+
 [features]
 simulation = []

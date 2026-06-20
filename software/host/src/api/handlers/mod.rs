@@ -5,3 +5,4 @@ pub mod alarm;
 pub mod export;
 pub mod recording;
 pub mod command;
+pub mod update;

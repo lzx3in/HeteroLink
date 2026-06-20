@@ -16,6 +16,7 @@ use crate::services::{
     mqtt_service::MqttService,
     recording_service::RecordingService,
     telemetry_service::TelemetryService,
+    updater_service::UpdaterService,
 };
 use crate::api::{AppState, routes};
 use crate::workers::{device_events, mqtt_events};
@@ -113,6 +114,7 @@ impl AppBuilder {
         let config_service = ConfigService::new(config_manager.clone(), event_bus.clone());
         let recording_service = RecordingService::new(data_logger.clone(), event_bus.clone());
         let export_service = ExportService::new(data_processor.clone());
+        let updater_service = UpdaterService::new(event_bus.clone());
 
         // ── 4. AppState ──────────────────────────────────────────────
         let state = AppState {
@@ -124,6 +126,7 @@ impl AppBuilder {
             config_service,
             recording_service,
             export_service,
+            updater_service: updater_service.clone(),
             event_bus: event_bus.clone(),
         };
 
@@ -184,6 +187,17 @@ impl AppBuilder {
                 let mut mqtt = mqtt_channel.lock().await;
                 mqtt.connect(mqtt_event_tx).await;
                 info!("MQTT connection initiated");
+
+                // 启动后延迟检查更新（静默）
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                let updater = updater_service.clone();
+                tokio::spawn(async move {
+                    let status = updater.check_for_update().await;
+                    if let crate::services::updater_service::UpdateStatus::Available { ref version, ref body, .. } = status {
+                        tracing::info!("Update available: v{}", version);
+                        updater.event_bus().emit_update_available(version, body);
+                    }
+                });
             });
         }
 

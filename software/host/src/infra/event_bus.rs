@@ -31,4 +31,12 @@ impl EventBus {
             timestamp: now_hms(),
         });
     }
+
+    /// 便捷方法：发布更新可用事件
+    pub fn emit_update_available(&self, version: impl Into<String>, body: impl Into<String>) {
+        let _ = self.tx.send(DomainEvent::UpdateAvailable {
+            version: version.into(),
+            body: body.into(),
+        });
+    }
 }

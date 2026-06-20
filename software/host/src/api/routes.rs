@@ -73,7 +73,11 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/command/{device_id}/gpio",
             post(handlers::command::set_gpio),
-        );
+        )
+        // 自动更新
+        .route("/update/status", get(handlers::update::status))
+        .route("/update/check", post(handlers::update::check))
+        .route("/update/apply", post(handlers::update::apply));
 
     Router::new()
         .nest("/api", api_routes)

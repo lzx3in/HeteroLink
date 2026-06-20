@@ -59,4 +59,9 @@ pub enum DomainEvent {
     Error {
         message: String,
     },
+    /// 发现新版本
+    UpdateAvailable {
+        version: String,
+        body: String,
+    },
 }

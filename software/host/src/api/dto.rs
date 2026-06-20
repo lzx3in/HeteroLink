@@ -153,6 +153,57 @@ pub struct StartRecordingRequest {
     pub path: Option<String>,
 }
 
+// --- 更新 ---
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateStatusDto {
+    pub status: String,
+    pub current_version: String,
+    pub new_version: Option<String>,
+    pub body: Option<String>,
+    pub progress: Option<f32>,
+    pub message: Option<String>,
+}
+
+impl From<(&str, &crate::services::updater_service::UpdateStatus)> for UpdateStatusDto {
+    fn from((current, s): (&str, &crate::services::updater_service::UpdateStatus)) -> Self {
+        use crate::services::updater_service::UpdateStatus;
+        match s {
+            UpdateStatus::Idle => Self {
+                status: "idle".into(), current_version: current.into(),
+                new_version: None, body: None, progress: None, message: None,
+            },
+            UpdateStatus::Checking => Self {
+                status: "checking".into(), current_version: current.into(),
+                new_version: None, body: None, progress: None, message: None,
+            },
+            UpdateStatus::Available { version, body, .. } => Self {
+                status: "available".into(), current_version: current.into(),
+                new_version: Some(version.clone()), body: Some(body.clone()),
+                progress: None, message: None,
+            },
+            UpdateStatus::Downloading { progress } => Self {
+                status: "downloading".into(), current_version: current.into(),
+                new_version: None, body: None, progress: Some(*progress), message: None,
+            },
+            UpdateStatus::Ready { version } => Self {
+                status: "ready".into(), current_version: current.into(),
+                new_version: Some(version.clone()), body: None, progress: None,
+                message: Some("更新已就绪，请重启服务".into()),
+            },
+            UpdateStatus::UpToDate => Self {
+                status: "up_to_date".into(), current_version: current.into(),
+                new_version: None, body: None, progress: None, message: None,
+            },
+            UpdateStatus::Error(msg) => Self {
+                status: "error".into(), current_version: current.into(),
+                new_version: None, body: None, progress: None,
+                message: Some(msg.clone()),
+            },
+        }
+    }
+}
+
 // --- 通用响应 ---
 
 #[derive(Debug, Serialize)]

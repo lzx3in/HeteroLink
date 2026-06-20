@@ -1,0 +1,148 @@
+name: Release Host
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./software/host/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install & Build Frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: software/host/web/dist/
+
+  build-host:
+    needs: build-frontend
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            ext: ''
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: '.exe'
+            archive: zip
+          - target: x86_64-apple-darwin
+            os: macos-13
+            ext: ''
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            ext: ''
+            archive: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: software/host
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: software/host/web/dist/
+
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd software/host
+          cargo build --release --target ${{ matrix.target }}
+          BINARY="target/${{ matrix.target }}/release/heterolink-host${{ matrix.ext }}"
+          ARCHIVE_NAME="heterolink-host-${{ matrix.target }}"
+          mkdir -p "release/${ARCHIVE_NAME}"
+          cp "$BINARY" "release/${ARCHIVE_NAME}/"
+          cp -r web/dist "release/${ARCHIVE_NAME}/web/"
+          cd release
+          tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd software/host
+          cargo build --release --target ${{ matrix.target }}
+          $BINARY = "target/${{ matrix.target }}/release/heterolink-host.exe"
+          $ARCHIVE_NAME = "heterolink-host-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path "release/$ARCHIVE_NAME/web" -Force
+          Copy-Item $BINARY "release/$ARCHIVE_NAME/"
+          Copy-Item -Recurse "web/dist/*" "release/$ARCHIVE_NAME/web/"
+          cd release
+          Compress-Archive -Path $ARCHIVE_NAME -DestinationPath "$ARCHIVE_NAME.zip"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            software/host/release/heterolink-host-${{ matrix.target }}.${{ matrix.archive }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-and-publish:
+    needs: build-host
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check release assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag,
+            });
+
+            const assetCount = release.assets.length;
+            core.info(`Release has ${assetCount} asset(s)`);
+
+            if (assetCount < 4) {
+              core.setFailed(`Expected at least 4 assets, found ${assetCount}`);
+              return;
+            }
+
+            // Publish the draft release
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              draft: false,
+              make_latest: true,
+            });
+            core.info(`Published release ${tag}`);
