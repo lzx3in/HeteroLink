@@ -1,150 +1,73 @@
-use crate::protocol::{MqttChannel, TelemetryData};
-use anyhow::Result;
-use serde::Serialize;
+use crate::domain::DeviceInfo;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc, Mutex};
 use tracing::info;
 
-/// 设备信息
-#[derive(Debug, Clone, Serialize)]
-pub struct DeviceInfo {
-    pub id: String,
-    pub name: String,
-    pub connected: bool,
-    pub online: bool,
-    pub connection_type: String,
-    pub port: String,
-    pub last_seen: u64,
-    pub metadata: HashMap<String, String>,
-}
-
-impl DeviceInfo {
-    pub fn new(id: String, name: String) -> Self {
-        Self {
-            id,
-            name,
-            connected: false,
-            online: false,
-            connection_type: String::new(),
-            port: String::new(),
-            last_seen: 0,
-            metadata: HashMap::new(),
-        }
-    }
-}
-
-/// 设备管理器事件
-#[derive(Debug)]
-pub enum DeviceEvent {
-    DevicesChanged(HashMap<String, DeviceInfo>),
-    DeviceStatusChanged { device_id: String, connected: bool, online: bool },
-    TelemetryReceived { device_id: String, data: TelemetryData },
-    DeviceError { device_id: String, error: String },
-}
-
 /// 设备管理器
+///
+/// 注意：本结构体本身由外层 `TokioMutex<DeviceManager>` 保护，
+/// 内部字段不再使用额外的 Arc/Mutex 包装。
 pub struct DeviceManager {
-    devices: Arc<Mutex<HashMap<String, DeviceInfo>>>,
-    mqtt_channel: Option<Arc<Mutex<MqttChannel>>>,
-    heartbeat_tx: Option<mpsc::Sender<String>>,
+    devices: HashMap<String, DeviceInfo>,
 }
 
 impl DeviceManager {
     pub fn new() -> Self {
         Self {
-            devices: Arc::new(Mutex::new(HashMap::new())),
-            mqtt_channel: None,
-            heartbeat_tx: None,
+            devices: HashMap::new(),
         }
     }
 
-    pub async fn get_devices(&self) -> HashMap<String, DeviceInfo> {
-        self.devices.lock().await.clone()
+    pub fn get_devices(&self) -> &HashMap<String, DeviceInfo> {
+        &self.devices
     }
 
-    pub async fn get_device(&self, device_id: &str) -> Option<DeviceInfo> {
-        self.devices.lock().await.get(device_id).cloned()
+    pub fn get_device(&self, device_id: &str) -> Option<&DeviceInfo> {
+        self.devices.get(device_id)
     }
 
-    pub async fn add_device(&self, device: DeviceInfo) -> Result<()> {
-        let mut devices = self.devices.lock().await;
-        if devices.contains_key(&device.id) {
-            return Err(anyhow::anyhow!("Device already exists: {}", device.id));
+    pub fn device_exists(&self, device_id: &str) -> bool {
+        self.devices.contains_key(device_id)
+    }
+
+    pub fn add_device(&mut self, device: DeviceInfo) -> Result<(), crate::domain::error::HeteroLinkError> {
+        if self.devices.contains_key(&device.id) {
+            return Err(crate::domain::error::HeteroLinkError::DeviceAlreadyExists(device.id.clone()));
         }
         info!("Device added: {}", device.id);
-        devices.insert(device.id.clone(), device);
+        self.devices.insert(device.id.clone(), device);
         Ok(())
     }
 
-    pub async fn remove_device(&self, device_id: &str) -> Result<()> {
-        let mut devices = self.devices.lock().await;
-        if devices.remove(device_id).is_none() {
-            return Err(anyhow::anyhow!("Device not found: {}", device_id));
+    pub fn remove_device(&mut self, device_id: &str) -> Result<(), crate::domain::error::HeteroLinkError> {
+        if self.devices.remove(device_id).is_none() {
+            return Err(crate::domain::error::HeteroLinkError::DeviceNotFound(device_id.to_string()));
         }
         info!("Device removed: {}", device_id);
         Ok(())
     }
 
-    pub async fn disconnect_device(&self, device_id: &str) -> Result<()> {
-        let mut devices = self.devices.lock().await;
-        if let Some(device) = devices.get_mut(device_id) {
+    pub fn disconnect_device(&mut self, device_id: &str) {
+        if let Some(device) = self.devices.get_mut(device_id) {
             device.connected = false;
         }
-
         info!("Device disconnected: {}", device_id);
-        Ok(())
     }
 
-    pub fn set_mqtt_channel(&mut self, channel: MqttChannel) {
-        self.mqtt_channel = Some(Arc::new(Mutex::new(channel)));
+    /// 确保设备存在，不存在则自动创建（原子操作）
+    pub fn ensure_device(&mut self, device_id: &str, name: &str, conn_type: &str) {
+        if !self.devices.contains_key(device_id) {
+            let mut device = DeviceInfo::new(device_id.to_string(), name.to_string());
+            device.connection_type = conn_type.to_string();
+            self.devices.insert(device_id.to_string(), device);
+            info!("Device auto-created: {} ({})", device_id, conn_type);
+        }
     }
 
-    pub async fn connect_device_mqtt(
-        &self,
-        device_id: &str,
-        broker_host: &str,
-        broker_port: u16,
-        _event_tx: mpsc::Sender<DeviceEvent>,
-    ) -> Result<()> {
-        if self.mqtt_channel.is_none() {
-            return Err(anyhow::anyhow!("MQTT channel not configured"));
+    /// 更新设备在线状态（需在已持有外层锁时调用）
+    pub fn set_online(&mut self, device_id: &str, online: bool) {
+        if let Some(device) = self.devices.get_mut(device_id) {
+            device.online = online;
+            device.connected = online;
         }
-
-        let mut devices = self.devices.lock().await;
-        if devices.contains_key(device_id) {
-            return Err(anyhow::anyhow!("Device already exists: {}", device_id));
-        }
-
-        let mut device = DeviceInfo::new(device_id.to_string(), format!("MQTT Device {}", device_id));
-        device.connection_type = "MQTT".to_string();
-        device.port = format!("{}:{}", broker_host, broker_port);
-        device.last_seen = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-
-        let mqtt_connected = {
-            if let Some(mqtt) = &self.mqtt_channel {
-                mqtt.lock().await.is_connected().await
-            } else {
-                false
-            }
-        };
-        device.connected = mqtt_connected;
-
-        devices.insert(device_id.to_string(), device);
-        drop(devices);
-
-        // 订阅该设备的命令和状态
-        if let Some(mqtt) = &self.mqtt_channel {
-            let _mqtt = mqtt.lock().await;
-        }
-
-        info!("MQTT device added: {}", device_id);
-        Ok(())
-    }
-
-    pub async fn send_heartbeat(&self, _device_id: &str) -> Result<()> {
-        // 心跳通过 MQTT 通道处理，此处无需操作
-        Ok(())
     }
 }

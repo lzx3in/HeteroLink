@@ -1,4 +1,5 @@
-use crate::protocol::crc16;
+use crate::protocol::crc16::crc16;
+use crate::domain::TelemetryData;
 
 /// 帧头魔数
 pub const FRAME_HEADER: u16 = 0xAA55;
@@ -168,9 +169,3 @@ impl Frame {
     }
 }
 
-/// 遥测数据结构
-#[derive(Debug, Clone, Default, serde::Serialize)]
-pub struct TelemetryData {
-    pub timestamp: u32,
-    pub channels: Vec<f32>,
-}

@@ -1,36 +1,15 @@
-use anyhow::Result;
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
-use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
-#[derive(Debug, Clone, Serialize)]
-pub struct MqttConfig {
-    pub broker_host: String,
-    pub broker_port: u16,
-    pub username: Option<String>,
-    pub password: Option<String>,
-    pub client_id: String,
-    pub use_tls: bool,
-}
-
-impl Default for MqttConfig {
-    fn default() -> Self {
-        Self {
-            broker_host: "broker.emqx.io".to_string(),
-            broker_port: 1883,
-            username: None,
-            password: None,
-            client_id: format!("heterolink-host-{}", &uuid::Uuid::new_v4().to_string()[..8]),
-            use_tls: false,
-        }
-    }
-}
+use crate::domain::config::MqttConfig;
+use crate::domain::error::HeteroLinkError;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum MqttEvent {
     Connected,
     Disconnected,
@@ -42,6 +21,7 @@ pub enum MqttEvent {
     ResponseReceived { device_id: String, response: String },
 }
 
+#[allow(dead_code)]
 pub struct MqttChannel {
     pub config: MqttConfig,
     pub simulation_mode: bool,
@@ -71,6 +51,7 @@ impl MqttChannel {
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_simulation_mode(&mut self, enabled: bool) {
         self.simulation_mode = enabled;
         if enabled {
@@ -90,7 +71,7 @@ impl MqttChannel {
         *self.connected.lock().await
     }
 
-    pub async fn connect(&mut self, event_tx: mpsc::Sender<MqttEvent>) -> Result<()> {
+    pub async fn connect(&mut self, event_tx: mpsc::Sender<MqttEvent>) {
         // Disconnect existing
         if self.client.is_some() {
             let _ = self.disconnect().await;
@@ -102,10 +83,8 @@ impl MqttChannel {
             self.config.broker_port,
         );
 
-        if let (Some(user), Some(pass)) = (&self.config.username, &self.config.password) {
-            if !user.is_empty() {
-                opts.set_credentials(user, pass);
-            }
+        if let (Some(user), Some(pass)) = (self.config.auth_username(), self.config.auth_password()) {
+            opts.set_credentials(user, pass);
         }
 
         opts.set_keep_alive(Duration::from_secs(10));
@@ -202,11 +181,9 @@ impl MqttChannel {
                 }
             }
         });
-
-        Ok(())
     }
 
-    pub async fn disconnect(&mut self) -> Result<()> {
+    pub async fn disconnect(&mut self) {
         if let Some(client) = &self.client {
             let client = client.lock().await;
             let _ = client.disconnect().await;
@@ -215,66 +192,24 @@ impl MqttChannel {
         self.client = None;
         *self.reconnect_attempts.lock().await = 0;
         info!("MQTT disconnected");
-        Ok(())
     }
 
-    pub async fn publish(&self, topic: &str, payload: &[u8], qos: QoS, retain: bool) -> Result<()> {
+    pub async fn publish(&self, topic: &str, payload: &[u8], qos: QoS, retain: bool) -> Result<(), HeteroLinkError> {
         if let Some(client) = &self.client {
             let client = client.lock().await;
             client.publish(topic, qos, retain, payload).await?;
             Ok(())
         } else {
-            Err(anyhow::anyhow!("MQTT client not connected"))
+            Err(HeteroLinkError::MqttNotConnected)
         }
     }
 
-    pub async fn publish_command(&self, device_id: &str, command: &str) -> Result<()> {
+    pub async fn publish_command(&self, device_id: &str, command: &str) -> Result<(), HeteroLinkError> {
         let topic = format!("heterolink/subboard/{}/command", device_id);
         self.publish(&topic, command.as_bytes(), QoS::AtLeastOnce, false).await
     }
 
     fn parse_device_id(topic: &str) -> String {
         topic.split('/').nth(2).unwrap_or("unknown").to_string()
-    }
-
-    /// Generate a mock JSON response for simulation mode.
-    pub fn simulate_response(command_json: &str) -> String {
-        let cmd = serde_json::from_str::<serde_json::Value>(command_json)
-            .ok()
-            .and_then(|v| v.get("cmd").and_then(|c| c.as_str()).map(|s| s.to_string()))
-            .unwrap_or_else(|| "unknown".to_string());
-
-        let (status, message) = match cmd.as_str() {
-            "start" => {
-                let rate = serde_json::from_str::<serde_json::Value>(command_json)
-                    .ok()
-                    .and_then(|v| v.get("params")
-                        .and_then(|p| p.get("sample_rate"))
-                        .and_then(|r| r.as_i64()))
-                    .unwrap_or(1000);
-                ("ok".to_string(), format!("Simulator: sampling started at {} Hz", rate))
-            }
-            "stop" => ("ok".to_string(), "Simulator: sampling stopped".to_string()),
-            "set_gpio" => {
-                let (ch, vl) = serde_json::from_str::<serde_json::Value>(command_json)
-                    .ok()
-                    .map(|v| {
-                        let c = v.get("channel").and_then(|x| x.as_i64()).unwrap_or(4);
-                        let val = v.get("value").and_then(|x| x.as_i64()).unwrap_or(0);
-                        (c, val)
-                    })
-                    .unwrap_or((4, 0));
-                ("ok".to_string(), format!("Simulator: GPIO ch{} = {}", ch, vl))
-            }
-            other => ("error".to_string(), format!("Simulator: unknown command '{}'", other)),
-        };
-
-        let ts = chrono::Utc::now().timestamp_millis();
-        serde_json::json!({
-            "cmd": cmd,
-            "status": status,
-            "message": message,
-            "timestamp": ts
-        }).to_string()
     }
 }

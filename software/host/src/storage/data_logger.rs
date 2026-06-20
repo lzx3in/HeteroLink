@@ -1,5 +1,5 @@
-use crate::protocol::TelemetryData;
-use anyhow::Result;
+use crate::domain::TelemetryData;
+use crate::domain::error::HeteroLinkError;
 use chrono::Local;
 use std::fs::{self, File};
 use std::io::Write;
@@ -35,7 +35,7 @@ impl DataLogger {
         }
     }
 
-    pub fn start_recording(&mut self, base_path: &str, device_id: &str) -> Result<()> {
+    pub fn start_recording(&mut self, base_path: &str, device_id: &str) -> Result<(), HeteroLinkError> {
         if self.recording {
             warn!("Already recording");
             return Ok(());
@@ -113,16 +113,16 @@ impl DataLogger {
                     .unwrap()
                     .as_millis() as u64;
 
-                if self.bytes_written >= self.max_file_size {
-                    let _ = self.split_file();
-                } else if now - self.last_split_time >= self.split_interval_ms {
+                if self.bytes_written >= self.max_file_size
+                    || now - self.last_split_time >= self.split_interval_ms
+                {
                     let _ = self.split_file();
                 }
             }
         }
     }
 
-    fn open_file(&mut self) -> Result<()> {
+    fn open_file(&mut self) -> Result<(), HeteroLinkError> {
         let path = PathBuf::from(&self.base_path).join(self.generate_filename());
         let mut file = File::create(&path)?;
 
@@ -147,7 +147,7 @@ impl DataLogger {
         format!("heterolink_{}_{}.csv", self.device_id, now.format("%Y%m%d_%H%M%S"))
     }
 
-    fn split_file(&mut self) -> Result<()> {
+    fn split_file(&mut self) -> Result<(), HeteroLinkError> {
         let old_path = self.current_file_path();
         self.close_file();
         self.open_file()?;

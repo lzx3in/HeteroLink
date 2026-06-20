@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/home/lzx/Code/HeteroLink/firmware/esp32/subboard"
+    "cmake.sourceDirectory": "/home/lzx/Code/HeteroLink/firmware/esp32/subboard",
+    "rust-analyzer.cargo.features": ["simulation"]
 }

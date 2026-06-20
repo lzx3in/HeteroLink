@@ -37,11 +37,14 @@ anyhow = "1.0"
 # CSV export
 csv = "1.3"
 
-# Async channels
-async-channel = "2.3"
-
 # Config paths
 dirs = "5.0"
 
 # UUID generation
 uuid = { version = "1.8", features = ["v4"] }
+
+# Fast random number generation (for simulation)
+fastrand = "2.0"
+
+[features]
+simulation = []

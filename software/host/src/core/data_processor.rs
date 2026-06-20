@@ -1,22 +1,10 @@
-use crate::protocol::TelemetryData;
-use serde::Serialize;
+use crate::domain::{TelemetryData, ChannelStats};
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tracing::info;
 
-/// 通道统计数据
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct ChannelStats {
-    pub min: f32,
-    pub max: f32,
-    pub avg: f32,
-    pub rms: f32,
-    pub sample_count: u32,
-}
-
-/// 设备数据
+/// 设备数据（内部结构）
 struct DeviceData {
     buffer: VecDeque<TelemetryData>,
     channel_stats: HashMap<i32, ChannelStats>,
@@ -36,21 +24,24 @@ impl DeviceData {
 }
 
 /// 数据处理器
+///
+/// 使用 `RwLock` 替代 `Mutex`，允许并发读取（高频统计查询场景下更优）。
+/// 外层已由 `Arc<DataProcessor>` 共享，内部无需再套 Arc。
 pub struct DataProcessor {
-    device_data: Arc<Mutex<HashMap<String, DeviceData>>>,
+    device_data: RwLock<HashMap<String, DeviceData>>,
     default_buffer_size: usize,
 }
 
 impl DataProcessor {
     pub fn new() -> Self {
         Self {
-            device_data: Arc::new(Mutex::new(HashMap::new())),
+            device_data: RwLock::new(HashMap::new()),
             default_buffer_size: 10000,
         }
     }
 
     pub async fn set_buffer_size(&self, device_id: &str, size: usize) {
-        let mut device_data = self.device_data.lock().await;
+        let mut device_data = self.device_data.write().await;
         if let Some(data) = device_data.get_mut(device_id) {
             data.max_buffer_size = size;
             while data.buffer.len() > size {
@@ -63,7 +54,7 @@ impl DataProcessor {
     }
 
     pub async fn add_data(&self, device_id: &str, data: TelemetryData) {
-        let mut device_data = self.device_data.lock().await;
+        let mut device_data = self.device_data.write().await;
         let dev_data = device_data
             .entry(device_id.to_string())
             .or_insert_with(|| DeviceData::new(self.default_buffer_size));
@@ -82,35 +73,34 @@ impl DataProcessor {
     }
 
     pub async fn get_data(&self, device_id: &str) -> Vec<TelemetryData> {
-        let device_data = self.device_data.lock().await;
-        if let Some(data) = device_data.get(device_id) {
-            data.buffer.iter().cloned().collect()
-        } else {
-            Vec::new()
-        }
+        let device_data = self.device_data.read().await;
+        device_data
+            .get(device_id)
+            .map(|d| d.buffer.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     pub async fn get_latest_data(&self, device_id: &str, count: usize) -> Vec<TelemetryData> {
-        let device_data = self.device_data.lock().await;
-        if let Some(data) = device_data.get(device_id) {
-            let start = data.buffer.len().saturating_sub(count);
-            data.buffer.iter().skip(start).cloned().collect()
-        } else {
-            Vec::new()
-        }
+        let device_data = self.device_data.read().await;
+        device_data
+            .get(device_id)
+            .map(|d| {
+                let start = d.buffer.len().saturating_sub(count);
+                d.buffer.iter().skip(start).cloned().collect()
+            })
+            .unwrap_or_default()
     }
 
     pub async fn get_stats(&self, device_id: &str) -> HashMap<i32, ChannelStats> {
-        let device_data = self.device_data.lock().await;
-        if let Some(data) = device_data.get(device_id) {
-            data.channel_stats.clone()
-        } else {
-            HashMap::new()
-        }
+        let device_data = self.device_data.read().await;
+        device_data
+            .get(device_id)
+            .map(|d| d.channel_stats.clone())
+            .unwrap_or_default()
     }
 
     pub async fn clear_data(&self, device_id: &str) {
-        let mut device_data = self.device_data.lock().await;
+        let mut device_data = self.device_data.write().await;
         if let Some(data) = device_data.get_mut(device_id) {
             data.buffer.clear();
             data.channel_stats.clear();
@@ -118,54 +108,17 @@ impl DataProcessor {
     }
 
     pub async fn clear_all(&self) {
-        self.device_data.lock().await.clear();
+        self.device_data.write().await.clear();
         info!("All data cleared");
-    }
-
-    pub async fn export_to_csv(&self, device_id: &str, file_path: &str) -> anyhow::Result<()> {
-        let device_data = self.device_data.lock().await;
-        let data = device_data.get(device_id)
-            .ok_or_else(|| anyhow::anyhow!("No data for device: {}", device_id))?;
-
-        let mut writer = csv::Writer::from_path(file_path)?;
-
-        if let Some(first) = data.buffer.front() {
-            let channel_count = first.channels.len();
-            let mut header = vec!["timestamp".to_string()];
-            for i in 0..channel_count {
-                header.push(format!("channel{}", i));
-            }
-            writer.write_record(&header)?;
-
-            for item in &data.buffer {
-                let mut record = vec![item.timestamp.to_string()];
-                for ch in &item.channels {
-                    record.push(ch.to_string());
-                }
-                writer.write_record(&record)?;
-            }
-        }
-
-        writer.flush()?;
-        info!("Data exported to CSV: {}", file_path);
-        Ok(())
-    }
-
-    pub async fn export_to_json(&self, device_id: &str, file_path: &str) -> anyhow::Result<()> {
-        let device_data = self.device_data.lock().await;
-        let data = device_data.get(device_id)
-            .ok_or_else(|| anyhow::anyhow!("No data for device: {}", device_id))?;
-
-        let json = serde_json::to_string_pretty(&data.buffer.iter().cloned().collect::<Vec<_>>())?;
-        std::fs::write(file_path, json)?;
-        info!("Data exported to JSON: {}", file_path);
-        Ok(())
     }
 
     fn update_stats(dev_data: &mut DeviceData, data: &TelemetryData) {
         for (i, &value) in data.channels.iter().enumerate() {
             let i = i as i32;
-            let stats = dev_data.channel_stats.entry(i).or_insert_with(ChannelStats::default);
+            let stats = dev_data
+                .channel_stats
+                .entry(i)
+                .or_default();
 
             if stats.sample_count == 0 || value < stats.min {
                 stats.min = value;
@@ -179,7 +132,8 @@ impl DataProcessor {
             stats.avg = old_avg + (value - old_avg) / stats.sample_count as f32;
 
             let count = stats.sample_count as f32;
-            stats.rms = (stats.rms * stats.rms * (count - 1.0) / count + value * value / count).sqrt();
+            stats.rms =
+                (stats.rms * stats.rms * (count - 1.0) / count + value * value / count).sqrt();
         }
     }
 }

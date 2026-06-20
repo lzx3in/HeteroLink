@@ -1,12 +1,8 @@
 use axum::extract::{Path, State};
 use axum::Json;
-use tracing::info;
 
 use crate::api::AppState;
-use crate::api::broadcast::WsMessage;
 use crate::api::dto::{ApiResponse, StartCommandRequest, GpioCommandRequest};
-use crate::protocol::MqttChannel;
-use crate::protocol::MqttEvent;
 
 /// POST /api/command/:device_id/start - 开始采样
 pub async fn start_sampling(
@@ -20,7 +16,7 @@ pub async fn start_sampling(
     })
     .to_string();
 
-    send_command(&state, &device_id, &cmd, &format!("start ({}Hz)", req.sample_rate)).await;
+    state.command_service.send_command(&device_id, &cmd, &format!("start ({}Hz)", req.sample_rate)).await;
     Json(ApiResponse::ok_message("命令已发送"))
 }
 
@@ -30,7 +26,7 @@ pub async fn stop_sampling(
     Path(device_id): Path<String>,
 ) -> Json<ApiResponse<()>> {
     let cmd = serde_json::json!({"cmd": "stop"}).to_string();
-    send_command(&state, &device_id, &cmd, "stop").await;
+    state.command_service.send_command(&device_id, &cmd, "stop").await;
     Json(ApiResponse::ok_message("命令已发送"))
 }
 
@@ -48,45 +44,10 @@ pub async fn set_gpio(
     })
     .to_string();
 
-    send_command(
-        &state,
+    state.command_service.send_command(
         &device_id,
         &cmd,
         &format!("set_gpio ch{}={}", req.channel, gpio_val),
-    )
-    .await;
+    ).await;
     Json(ApiResponse::ok_message("命令已发送"))
-}
-
-async fn send_command(state: &AppState, device_id: &str, cmd: &str, desc: &str) {
-    if let Some(ref sim_tx) = state.simulation_tx {
-        let response = MqttChannel::simulate_response(cmd);
-        let _ = sim_tx
-            .send(MqttEvent::ResponseReceived {
-                device_id: device_id.to_string(),
-                response,
-            })
-            .await;
-        let _ = state.ws_broadcast.send(WsMessage::Log {
-            message: format!("[模拟] -> {} -> {}", desc, device_id),
-            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-        });
-    } else {
-        let mqtt_ch = state.mqtt_channel.lock().await;
-        match mqtt_ch.publish_command(device_id, cmd).await {
-            Ok(_) => {
-                info!("Command sent: {} -> {}", desc, device_id);
-                let _ = state.ws_broadcast.send(WsMessage::Log {
-                    message: format!("-> 发送命令: {} -> {}", desc, device_id),
-                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                });
-            }
-            Err(e) => {
-                let _ = state.ws_broadcast.send(WsMessage::Log {
-                    message: format!("发送失败: {}", e),
-                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                });
-            }
-        }
-    }
 }

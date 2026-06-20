@@ -4,6 +4,7 @@ use axum::response::IntoResponse;
 use futures::{SinkExt, StreamExt};
 use tracing::info;
 
+use crate::api::broadcast::WsMessage;
 use crate::api::AppState;
 
 pub async fn ws_handler(
@@ -15,16 +16,18 @@ pub async fn ws_handler(
 
 async fn handle_ws_connection(socket: WebSocket, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
-    let mut rx = state.ws_broadcast.subscribe();
+    let mut rx = state.event_bus.subscribe();
 
     info!("WebSocket client connected");
 
-    // 发送任务：从 broadcast 接收并推送到 WebSocket 客户端
+    // 发送任务：DomainEvent → WsMessage → JSON → WebSocket
     let send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            if let Ok(json) = serde_json::to_string(&msg) {
-                if sender.send(Message::Text(json.into())).await.is_err() {
-                    break;
+        while let Ok(domain_event) = rx.recv().await {
+            if let Some(ws_msg) = WsMessage::from_domain(&domain_event) {
+                if let Ok(json) = serde_json::to_string(&ws_msg) {
+                    if sender.send(Message::Text(json)).await.is_err() {
+                        break;
+                    }
                 }
             }
         }
@@ -35,7 +38,6 @@ async fn handle_ws_connection(socket: WebSocket, state: AppState) {
         while let Some(Ok(msg)) = receiver.next().await {
             match msg {
                 Message::Text(text) => {
-                    // 可解析客户端命令，当前仅做日志
                     tracing::debug!("WS client message: {}", text);
                 }
                 Message::Close(_) => break,
@@ -44,7 +46,6 @@ async fn handle_ws_connection(socket: WebSocket, state: AppState) {
         }
     });
 
-    // 任一任务结束则关闭连接
     tokio::select! {
         _ = send_task => {},
         _ = recv_task => {},

@@ -1,11 +1,11 @@
 use axum::extract::State;
 use axum::Json;
-use tracing::{info, warn};
+use tracing::info;
+
+use crate::api::dto::{ApiResponse, MqttConnectRequest};
+use crate::domain::config::MqttConfig;
 
 use crate::api::AppState;
-use crate::api::broadcast::WsMessage;
-use crate::api::dto::{ApiResponse, MqttConnectRequest};
-use crate::protocol::MqttConfig;
 
 /// POST /api/mqtt/connect - 连接 MQTT
 pub async fn connect(
@@ -17,65 +17,40 @@ pub async fn connect(
     }
 
     info!("MQTT connect request: {}:{}", req.broker_host, req.broker_port);
-
-    let _ = state.ws_broadcast.send(WsMessage::Log {
-        message: format!("正在连接 MQTT: {}:{}...", req.broker_host, req.broker_port),
-        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-    });
+    state
+        .event_bus
+        .emit_log(format!("正在连接 MQTT: {}:{}...", req.broker_host, req.broker_port));
 
     let config = MqttConfig {
         broker_host: req.broker_host,
         broker_port: req.broker_port,
-        username: req.username.filter(|s| !s.is_empty()),
-        password: req.password.filter(|s| !s.is_empty()),
+        username: req.username.filter(|s| !s.is_empty()).unwrap_or_default(),
+        password: req.password.filter(|s| !s.is_empty()).unwrap_or_default(),
         client_id: req.client_id.unwrap_or_else(|| {
             format!("heterolink-host-{}", &uuid::Uuid::new_v4().to_string()[..8])
         }),
         use_tls: req.use_tls,
     };
 
-    let mut mqtt_ch = state.mqtt_channel.lock().await;
-    mqtt_ch.update_config(config);
-    match mqtt_ch.connect(state.mqtt_event_tx.clone()).await {
-        Ok(_) => {
-            let _ = state.ws_broadcast.send(WsMessage::Log {
-                message: "MQTT 连接中...".to_string(),
-                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-            });
-            Json(ApiResponse::ok_message("MQTT 连接中"))
-        }
-        Err(e) => {
-            warn!("MQTT connect failed: {}", e);
-            let _ = state.ws_broadcast.send(WsMessage::Log {
-                message: format!("MQTT 连接失败: {}", e),
-                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-            });
-            Json(ApiResponse::error(&format!("MQTT 连接失败: {}", e)))
-        }
-    }
+    state.mqtt_service.connect(config).await;
+    state.event_bus.emit_log("MQTT 连接中...");
+    Json(ApiResponse::ok_message("MQTT 连接中"))
 }
 
 /// POST /api/mqtt/disconnect - 断开 MQTT
 pub async fn disconnect(
     State(state): State<AppState>,
 ) -> Json<ApiResponse<()>> {
-    match state.mqtt_channel.lock().await.disconnect().await {
-        Ok(_) => {
-            info!("MQTT disconnected via API");
-            let _ = state.ws_broadcast.send(WsMessage::Log {
-                message: "MQTT 已断开".to_string(),
-                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-            });
-            Json(ApiResponse::ok_message("MQTT 已断开"))
-        }
-        Err(e) => Json(ApiResponse::error(&format!("MQTT 断开失败: {}", e))),
-    }
+    state.mqtt_service.disconnect().await;
+    info!("MQTT disconnected via API");
+    state.event_bus.emit_log("MQTT 已断开");
+    Json(ApiResponse::ok_message("MQTT 已断开"))
 }
 
 /// GET /api/mqtt/status - MQTT 状态
 pub async fn status(
     State(state): State<AppState>,
 ) -> Json<ApiResponse<serde_json::Value>> {
-    let connected = state.mqtt_channel.lock().await.is_connected().await;
+    let connected = state.mqtt_service.is_connected().await;
     Json(ApiResponse::ok(serde_json::json!({ "connected": connected })))
 }

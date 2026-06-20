@@ -1,87 +1,9 @@
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::info;
 
-/// MQTT 配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MqttConfigData {
-    pub broker_host: String,
-    pub broker_port: u16,
-    pub username: String,
-    pub password: String,
-    pub client_id: String,
-    pub use_tls: bool,
-}
+use crate::domain::error::HeteroLinkError;
 
-impl Default for MqttConfigData {
-    fn default() -> Self {
-        Self {
-            broker_host: "broker.emqx.io".to_string(),
-            broker_port: 1883,
-            username: String::new(),
-            password: String::new(),
-            client_id: "heterolink-host".to_string(),
-            use_tls: false,
-        }
-    }
-}
-
-/// 数据配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataConfig {
-    pub buffer_size: usize,
-    pub auto_export: bool,
-    pub export_path: String,
-}
-
-impl Default for DataConfig {
-    fn default() -> Self {
-        Self { buffer_size: 10000, auto_export: false, export_path: String::new() }
-    }
-}
-
-/// 告警配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlarmConfigData {
-    pub enabled: bool,
-    pub lower_limit: f32,
-    pub upper_limit: f32,
-    pub level: String,
-}
-
-impl Default for AlarmConfigData {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            lower_limit: -1000.0,
-            upper_limit: 1000.0,
-            level: "warning".to_string(),
-        }
-    }
-}
-
-/// UI 配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UiConfig {
-    pub theme: String,
-    pub language: String,
-}
-
-impl Default for UiConfig {
-    fn default() -> Self {
-        Self { theme: "dark".to_string(), language: "zh-CN".to_string() }
-    }
-}
-
-/// 应用配置
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct AppConfig {
-    pub mqtt: MqttConfigData,
-    pub data: DataConfig,
-    pub alarm: AlarmConfigData,
-    pub ui: UiConfig,
-}
+pub use crate::domain::config::AppConfig;
 
 /// 配置管理器
 pub struct ConfigManager {
@@ -104,7 +26,7 @@ impl ConfigManager {
             .join("config.toml")
     }
 
-    pub fn load(&mut self, path: Option<&str>) -> Result<()> {
+    pub fn load(&mut self, path: Option<&str>) -> Result<(), HeteroLinkError> {
         let config_path = path.map(PathBuf::from).unwrap_or_else(|| self.config_path.clone());
 
         if !config_path.exists() {
@@ -120,7 +42,7 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub fn save(&self, path: Option<&str>) -> Result<()> {
+    pub fn save(&self, path: Option<&str>) -> Result<(), HeteroLinkError> {
         let config_path = path.map(PathBuf::from).unwrap_or_else(|| self.config_path.clone());
 
         if let Some(parent) = config_path.parent() {

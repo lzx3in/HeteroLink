@@ -1,125 +1,106 @@
-use crate::protocol::TelemetryData;
-use chrono::{DateTime, Local};
-use serde::{Serialize, Deserialize, Serializer};
+use crate::domain::{TelemetryData, AlarmLevel, AlarmConfig, AlarmRecord};
+use chrono::Local;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-/// 告警级别
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AlarmLevel {
-    Info,
-    Warning,
-    Critical,
+/// 告警系统内部状态（三合一，由单个 RwLock 保护）
+struct AlarmState {
+    configs: HashMap<String, Vec<AlarmConfig>>,
+    records: HashMap<String, Vec<AlarmRecord>>,
+    active: HashMap<String, HashMap<i32, bool>>,
 }
 
-impl std::fmt::Display for AlarmLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AlarmLevel::Info => write!(f, "INFO"),
-            AlarmLevel::Warning => write!(f, "WARNING"),
-            AlarmLevel::Critical => write!(f, "CRITICAL"),
-        }
-    }
-}
-
-/// 告警配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlarmConfig {
-    pub channel_id: i32,
-    pub lower_limit: f32,
-    pub upper_limit: f32,
-    pub lower_enabled: bool,
-    pub upper_enabled: bool,
-    pub level: AlarmLevel,
-    pub enabled: bool,
-}
-
-impl Default for AlarmConfig {
-    fn default() -> Self {
+impl AlarmState {
+    fn new() -> Self {
         Self {
-            channel_id: 0,
-            lower_limit: 0.0,
-            upper_limit: 0.0,
-            lower_enabled: false,
-            upper_enabled: false,
-            level: AlarmLevel::Warning,
-            enabled: true,
+            configs: HashMap::new(),
+            records: HashMap::new(),
+            active: HashMap::new(),
         }
     }
-}
-
-/// 告警记录
-#[derive(Debug, Clone, Serialize)]
-pub struct AlarmRecord {
-    pub device_id: String,
-    pub channel_id: i32,
-    pub level: AlarmLevel,
-    pub value: f32,
-    pub message: String,
-    #[serde(serialize_with = "serialize_datetime")]
-    pub timestamp: DateTime<Local>,
-    pub acknowledged: bool,
-}
-
-fn serialize_datetime<S>(dt: &DateTime<Local>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&dt.format("%Y-%m-%d %H:%M:%S").to_string())
 }
 
 /// 告警系统
+///
+/// 将原先的三个独立 `Arc<Mutex<HashMap>>` 合并为单个 `RwLock<AlarmState>`，
+/// 消除嵌套锁风险，读操作（get_alarms/get_records）使用 `.read()`，
+/// 写操作（check_data/configure）使用 `.write()`。
 pub struct AlarmSystem {
-    alarm_configs: Arc<Mutex<HashMap<String, Vec<AlarmConfig>>>>,
-    alarm_records: Arc<Mutex<HashMap<String, Vec<AlarmRecord>>>>,
-    active_alarms: Arc<Mutex<HashMap<String, HashMap<i32, bool>>>>,
+    state: RwLock<AlarmState>,
 }
 
 impl AlarmSystem {
     pub fn new() -> Self {
         Self {
-            alarm_configs: Arc::new(Mutex::new(HashMap::new())),
-            alarm_records: Arc::new(Mutex::new(HashMap::new())),
-            active_alarms: Arc::new(Mutex::new(HashMap::new())),
+            state: RwLock::new(AlarmState::new()),
         }
     }
 
     pub async fn configure_alarm(&self, device_id: &str, config: AlarmConfig) {
-        let mut configs = self.alarm_configs.lock().await;
-        let device_configs = configs.entry(device_id.to_string()).or_insert_with(Vec::new);
+        let mut state = self.state.write().await;
+        let device_configs = state
+            .configs
+            .entry(device_id.to_string())
+            .or_insert_with(Vec::new);
 
-        if let Some(existing) = device_configs.iter_mut().find(|c| c.channel_id == config.channel_id) {
+        if let Some(existing) = device_configs
+            .iter_mut()
+            .find(|c| c.channel_id == config.channel_id)
+        {
             *existing = config;
         } else {
             device_configs.push(config);
         }
 
-        info!("Alarm configured for device {} channel {}", device_id, device_configs.last().unwrap().channel_id);
+        info!(
+            "Alarm configured for device {} channel {}",
+            device_id,
+            device_configs.last().unwrap().channel_id
+        );
     }
 
     pub async fn get_alarms(&self, device_id: &str) -> Vec<AlarmConfig> {
-        let configs = self.alarm_configs.lock().await;
-        configs.get(device_id).cloned().unwrap_or_default()
+        let state = self.state.read().await;
+        state
+            .configs
+            .get(device_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub async fn set_alarm_enabled(&self, device_id: &str, channel_id: i32, enabled: bool) {
-        let mut configs = self.alarm_configs.lock().await;
-        if let Some(device_configs) = configs.get_mut(device_id) {
-            if let Some(config) = device_configs.iter_mut().find(|c| c.channel_id == channel_id) {
+        let mut state = self.state.write().await;
+        if let Some(device_configs) = state.configs.get_mut(device_id) {
+            if let Some(config) = device_configs
+                .iter_mut()
+                .find(|c| c.channel_id == channel_id)
+            {
                 config.enabled = enabled;
-                info!("Alarm {} for device {} channel {}",
-                    if enabled { "enabled" } else { "disabled" }, device_id, channel_id);
+                info!(
+                    "Alarm {} for device {} channel {}",
+                    if enabled { "enabled" } else { "disabled" },
+                    device_id,
+                    channel_id
+                );
             }
         }
     }
 
-    pub async fn check_data(&self, device_id: &str, data: &TelemetryData) {
-        let configs = self.alarm_configs.lock().await;
-        let Some(device_configs) = configs.get(device_id) else { return };
+    pub async fn check_data(
+        &self,
+        device_id: &str,
+        data: &TelemetryData,
+    ) -> Vec<AlarmRecord> {
+        let mut state = self.state.write().await;
 
-        for config in device_configs {
+        let Some(device_configs) = state.configs.get(device_id).cloned() else {
+            return Vec::new();
+        };
+
+        let mut triggered = Vec::new();
+
+        for config in &device_configs {
             if !config.enabled || config.channel_id as usize >= data.channels.len() {
                 continue;
             }
@@ -127,60 +108,105 @@ impl AlarmSystem {
             let value = data.channels[config.channel_id as usize];
 
             if config.lower_enabled && value < config.lower_limit {
-                let msg = format!("Channel {} value {} below lower limit {}",
-                    config.channel_id, value, config.lower_limit);
-                self.trigger_alarm(device_id, config.channel_id, config.level, value, &msg).await;
+                let msg = format!(
+                    "Channel {} value {} below lower limit {}",
+                    config.channel_id, value, config.lower_limit
+                );
+                if let Some(record) = Self::trigger_alarm_inner(
+                    &mut state,
+                    device_id,
+                    config.channel_id,
+                    config.level,
+                    value,
+                    &msg,
+                ) {
+                    triggered.push(record);
+                }
             } else if config.upper_enabled && value > config.upper_limit {
-                let msg = format!("Channel {} value {} above upper limit {}",
-                    config.channel_id, value, config.upper_limit);
-                self.trigger_alarm(device_id, config.channel_id, config.level, value, &msg).await;
+                let msg = format!(
+                    "Channel {} value {} above upper limit {}",
+                    config.channel_id, value, config.upper_limit
+                );
+                if let Some(record) = Self::trigger_alarm_inner(
+                    &mut state,
+                    device_id,
+                    config.channel_id,
+                    config.level,
+                    value,
+                    &msg,
+                ) {
+                    triggered.push(record);
+                }
             } else {
-                let mut active = self.active_alarms.lock().await;
-                if let Some(device_active) = active.get_mut(device_id) {
+                // 恢复正常，清除激活状态
+                if let Some(device_active) = state.active.get_mut(device_id) {
                     if device_active.get(&config.channel_id) == Some(&true) {
                         device_active.insert(config.channel_id, false);
-                        info!("Alarm cleared for device {} channel {}", device_id, config.channel_id);
+                        info!(
+                            "Alarm cleared for device {} channel {}",
+                            device_id, config.channel_id
+                        );
                     }
                 }
             }
         }
+
+        triggered
     }
 
     pub async fn get_alarm_records(&self, device_id: &str) -> Vec<AlarmRecord> {
-        let records = self.alarm_records.lock().await;
-        records.get(device_id).cloned().unwrap_or_default()
+        let state = self.state.read().await;
+        state
+            .records
+            .get(device_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub async fn get_all_alarm_records(&self) -> Vec<AlarmRecord> {
-        let records = self.alarm_records.lock().await;
-        records.values().flat_map(|v| v.clone()).collect()
+        let state = self.state.read().await;
+        state.records.values().flat_map(|v| v.clone()).collect()
     }
 
     pub async fn acknowledge_alarm(&self, device_id: &str, channel_id: i32) {
-        let mut records = self.alarm_records.lock().await;
-        if let Some(device_records) = records.get_mut(device_id) {
-            if let Some(record) = device_records.iter_mut()
-                .find(|r| r.channel_id == channel_id && !r.acknowledged) {
+        let mut state = self.state.write().await;
+        if let Some(device_records) = state.records.get_mut(device_id) {
+            if let Some(record) = device_records
+                .iter_mut()
+                .find(|r| r.channel_id == channel_id && !r.acknowledged)
+            {
                 record.acknowledged = true;
-                info!("Alarm acknowledged for device {} channel {}", device_id, channel_id);
+                info!(
+                    "Alarm acknowledged for device {} channel {}",
+                    device_id, channel_id
+                );
             }
         }
     }
 
     pub async fn clear_records(&self, device_id: &str) {
-        self.alarm_records.lock().await.remove(device_id);
+        self.state.write().await.records.remove(device_id);
         info!("Alarm records cleared for device: {}", device_id);
     }
 
-    async fn trigger_alarm(&self, device_id: &str, channel_id: i32, level: AlarmLevel, value: f32, message: &str) {
-        let mut active = self.active_alarms.lock().await;
-        let device_active = active.entry(device_id.to_string()).or_insert_with(HashMap::new);
+    /// 内部触发告警（在已持有写锁时调用，避免嵌套锁）
+    fn trigger_alarm_inner(
+        state: &mut AlarmState,
+        device_id: &str,
+        channel_id: i32,
+        level: AlarmLevel,
+        value: f32,
+        message: &str,
+    ) -> Option<AlarmRecord> {
+        let device_active = state
+            .active
+            .entry(device_id.to_string())
+            .or_default();
 
         if device_active.get(&channel_id) == Some(&true) {
-            return;
+            return None;
         }
         device_active.insert(channel_id, true);
-        drop(active);
 
         let record = AlarmRecord {
             device_id: device_id.to_string(),
@@ -192,9 +218,13 @@ impl AlarmSystem {
             acknowledged: false,
         };
 
-        let mut records = self.alarm_records.lock().await;
-        records.entry(device_id.to_string()).or_insert_with(Vec::new).push(record);
+        state
+            .records
+            .entry(device_id.to_string())
+            .or_default()
+            .push(record.clone());
 
         warn!("Alarm triggered: {}", message);
+        Some(record)
     }
 }

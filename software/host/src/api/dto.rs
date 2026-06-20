@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::core::{DeviceInfo, ChannelStats, AlarmRecord, AlarmLevel};
+use crate::domain::{DeviceInfo, ChannelStats, AlarmRecord, AlarmLevel};
 
 // --- 设备 ---
 
@@ -170,20 +170,20 @@ impl<T: Serialize> ApiResponse<T> {
             message: None,
         }
     }
+
+    pub fn error(msg: &str) -> Self {
+        Self {
+            success: false,
+            data: None,
+            message: Some(msg.to_string()),
+        }
+    }
 }
 
 impl ApiResponse<()> {
     pub fn ok_message(msg: &str) -> Self {
         Self {
             success: true,
-            data: None,
-            message: Some(msg.to_string()),
-        }
-    }
-
-    pub fn error(msg: &str) -> Self {
-        Self {
-            success: false,
             data: None,
             message: Some(msg.to_string()),
         }
