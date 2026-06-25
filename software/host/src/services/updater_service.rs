@@ -197,7 +197,7 @@ impl UpdaterService {
                     };
                 }
                 self.event_bus
-                    .emit_log(&format!("更新已就绪 (v{})，请重启服务以应用", version));
+                    .emit_log(format!("更新已就绪 (v{})，请重启服务以应用", version));
                 Ok(version)
             }
             Ok(Err(msg)) => {
