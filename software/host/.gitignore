@@ -2,3 +2,5 @@
 *.csv
 *.json
 !web/package-lock.json
+!web/package.json
+!web/tsconfig*.json
