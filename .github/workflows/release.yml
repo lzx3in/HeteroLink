@@ -1,4 +1,4 @@
-name: Release Host
+name: Release
 
 on:
   push:
@@ -7,11 +7,48 @@ on:
   workflow_dispatch:
 
 jobs:
+  pack-firmware:
+    name: Pack Firmware (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [esp32, esp32s3, esp32c3, esp32c6]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: ${{ matrix.target }}
+          path: 'unit'
+
+      - name: Build
+        run: |
+          cd unit
+          idf.py set-target ${{ matrix.target }}
+          idf.py build
+
+      - name: Pack
+        run: |
+          mkdir -p release
+          cp unit/build/*.bin release/
+          cd release
+          tar czf subboard-${{ matrix.target }}.tar.gz *.bin
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.target }}
+          path: release/subboard-${{ matrix.target }}.tar.gz
+
   build-frontend:
+    name: Build Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./software/host/web
+        working-directory: software/host/web
 
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +68,8 @@ jobs:
           name: web-dist
           path: software/host/web/dist/
 
-  build-host:
+  pack-host:
+    name: Pack Host (${{ matrix.target }})
     needs: build-frontend
     permissions:
       contents: write
@@ -83,10 +121,8 @@ jobs:
           BINARY="target/${{ matrix.target }}/release/heterolink-host${{ matrix.ext }}"
           ASSET_NAME="heterolink-host-${{ matrix.target }}"
           mkdir -p release
-          # self_update 包：二进制在根目录
           cp "$BINARY" "release/heterolink-host${{ matrix.ext }}"
           cd release && tar czf "${ASSET_NAME}.tar.gz" "heterolink-host${{ matrix.ext }}" && cd ..
-          # 完整部署包：二进制 + web/dist
           FULL_NAME="${ASSET_NAME}-full"
           mkdir -p "release/${FULL_NAME}/web"
           cp "$BINARY" "release/${FULL_NAME}/"
@@ -102,12 +138,10 @@ jobs:
           $BINARY = "target/${{ matrix.target }}/release/heterolink-host.exe"
           $ASSET_NAME = "heterolink-host-${{ matrix.target }}"
           New-Item -ItemType Directory -Path "release" -Force
-          # self_update 包
           Copy-Item $BINARY "release/heterolink-host.exe"
           cd release
           Compress-Archive -Path "heterolink-host.exe" -DestinationPath "$ASSET_NAME.zip" -Force
           cd ..
-          # 完整部署包
           $FULL_NAME = "$ASSET_NAME-full"
           New-Item -ItemType Directory -Path "release/$FULL_NAME/web" -Force
           Copy-Item $BINARY "release/$FULL_NAME/"
@@ -115,24 +149,43 @@ jobs:
           cd release
           Compress-Archive -Path $FULL_NAME -DestinationPath "$FULL_NAME.zip" -Force
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload host artifact
+        uses: actions/upload-artifact@v4
         with:
-          draft: true
-          files: |
+          name: host-${{ matrix.target }}
+          path: |
             software/host/release/heterolink-host-${{ matrix.target }}.${{ matrix.archive }}
             software/host/release/heterolink-host-${{ matrix.target }}-full.${{ matrix.archive }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  verify-and-publish:
-    needs: build-host
+  release:
+    name: Publish Release
+    needs: [pack-firmware, pack-host]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Check release assets
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release-assets/ \;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify & Publish Release
         uses: actions/github-script@v7
         with:
           script: |
@@ -146,12 +199,12 @@ jobs:
             const assetCount = release.assets.length;
             core.info(`Release has ${assetCount} asset(s)`);
 
-            if (assetCount < 8) {
-              core.setFailed(`Expected at least 8 assets, found ${assetCount}`);
+            const expectedAssets = 4 * 2 + 4 * 2;
+            if (assetCount < expectedAssets) {
+              core.setFailed(`Expected ${expectedAssets} assets, found ${assetCount}`);
               return;
             }
 
-            // Publish the draft release
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,

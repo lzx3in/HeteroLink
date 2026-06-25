@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-firmware:
+    name: Build Firmware (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [esp32, esp32s3, esp32c3, esp32c6]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: ${{ matrix.target }}
+          path: 'unit'
+
+      - name: Build
+        run: |
+          cd unit
+          idf.py set-target ${{ matrix.target }}
+          idf.py build
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: subboard-${{ matrix.target }}-bin
+          path: unit/build/*.bin
+
+  test-host:
+    name: Test Host (Rust)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: software/host
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: software/host
+
+      - name: Check
+        run: cargo check --all-features
+
+      - name: Test
+        run: cargo test --all-features
+
+      - name: Clippy
+        run: cargo clippy --all-features -- -D warnings
+
+  build-frontend:
+    name: Build Frontend (Vue)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: software/host/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: npm ci
+
+      - name: Type Check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: software/host/web/dist/
+
+  build-host:
+    name: Build Host (Rust, ${{ matrix.target }})
+    needs: [test-host, build-frontend]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: software/host
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: software/host/web/dist/
+
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cd software/host && cargo build --release --target ${{ matrix.target }}
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cd software/host && cargo build --release --target ${{ matrix.target }}
