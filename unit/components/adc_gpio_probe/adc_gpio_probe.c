@@ -186,9 +186,9 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
         if (ch->mode != PROBE_MODE_ADC) continue;
 
 #if ADC_CALI_USE_LINE_FITTING
+        // line_fitting: 校准针对整个 ADC 单元，无 chan 字段
         adc_cali_line_fitting_config_t cali_cfg = {
             .unit_id  = (ch->adc_unit == 1) ? ADC_UNIT_1 : ADC_UNIT_2,
-            .chan     = ch->adc_channel,
             .atten    = ch->attenuation,
             .bitwidth = ch->bit_width,
         };
