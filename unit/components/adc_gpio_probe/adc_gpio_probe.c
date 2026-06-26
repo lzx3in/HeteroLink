@@ -166,12 +166,12 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
         out_handle->states[i].data.gpio_value = false;
     }
 
-    // 为每个 ADC 通道创建校准句柄 (curve fitting scheme)
+    // 为每个 ADC 通道创建校准句柄 (line fitting scheme)
     for (size_t i = 0; i < config->channel_count; i++) {
         const probe_channel_config_t *ch = &config->channels[i];
         if (ch->mode != PROBE_MODE_ADC) continue;
 
-        adc_cali_curve_fitting_config_t cali_cfg = {
+        adc_cali_line_fitting_config_t cali_cfg = {
             .unit_id  = (ch->adc_unit == 1) ? ADC_UNIT_1 : ADC_UNIT_2,
             .chan     = ch->adc_channel,
             .atten    = ch->attenuation,
@@ -179,10 +179,10 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
         };
 
         adc_cali_handle_t cali = NULL;
-        esp_err_t cali_ret = adc_cali_create_scheme_curve_fitting(&cali_cfg, &cali);
+        esp_err_t cali_ret = adc_cali_create_scheme_line_fitting(&cali_cfg, &cali);
         if (cali_ret == ESP_OK) {
             out_handle->cali_handles[i] = cali;
-            ESP_LOGI(TAG, "  CH%u: ADC calibration created (curve fitting)", ch->channel_num);
+            ESP_LOGI(TAG, "  CH%u: ADC calibration created (line fitting)", ch->channel_num);
         } else {
             ESP_LOGW(TAG, "  CH%u: ADC calibration not available: %s", ch->channel_num, esp_err_to_name(cali_ret));
         }
@@ -217,7 +217,7 @@ esp_err_t adc_gpio_probe_deinit(adc_gpio_probe_device_t *handle)
     // 删除校准句柄
     for (size_t i = 0; i < PROBE_MAX_CHANNELS; i++) {
         if (handle->cali_handles[i]) {
-            adc_cali_delete_scheme_curve_fitting(handle->cali_handles[i]);
+            adc_cali_delete_scheme_line_fitting(handle->cali_handles[i]);
             handle->cali_handles[i] = NULL;
         }
     }
