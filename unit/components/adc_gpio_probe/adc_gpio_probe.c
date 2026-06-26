@@ -18,12 +18,15 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "adc_gpio_probe.h"
 
-// ESP-IDF v6.0: esp32 和 RISC-V 芯片使用 line_fitting，
-// esp32s2/esp32s3 (Xtensa) 使用 curve_fitting
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6) \
-    || defined(CONFIG_IDF_TARGET_ESP32C2) || defined(CONFIG_IDF_TARGET_ESP32C5) \
-    || defined(CONFIG_IDF_TARGET_ESP32H2) || defined(CONFIG_IDF_TARGET_ESP32P4) \
-    || defined(CONFIG_IDF_TARGET_ESP32)
+// ESP-IDF v6.0 ADC 校准 API 因芯片而异：
+// esp32, esp32c6, RISC-V (C2/C5/H2/P4) → line_fitting
+// esp32s2, esp32s3, esp32c3              → curve_fitting
+#if defined(CONFIG_IDF_TARGET_ESP32) \
+    || defined(CONFIG_IDF_TARGET_ESP32C6) \
+    || defined(CONFIG_IDF_TARGET_ESP32C2) \
+    || defined(CONFIG_IDF_TARGET_ESP32C5) \
+    || defined(CONFIG_IDF_TARGET_ESP32H2) \
+    || defined(CONFIG_IDF_TARGET_ESP32P4)
 #define ADC_CALI_USE_LINE_FITTING 1
 #else
 #define ADC_CALI_USE_LINE_FITTING 0
