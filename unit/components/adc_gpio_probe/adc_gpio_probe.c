@@ -18,6 +18,14 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "adc_gpio_probe.h"
 
+// ESP-IDF v6.0: Xtensa 芯片 (ESP32/S3) 使用 curve_fitting，
+// RISC-V 芯片 (C3/C6) 使用 line_fitting
+#if __has_include("esp_adc/adc_cali_line_fitting.h")
+#define ADC_CALI_USE_LINE_FITTING 1
+#else
+#define ADC_CALI_USE_LINE_FITTING 0
+#endif
+
 static const char *TAG = "adc_gpio_probe";
 
 int adc_gpio_probe_adc_to_mv(uint32_t adc_value, adc_atten_t attenuation)
@@ -166,11 +174,12 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
         out_handle->states[i].data.gpio_value = false;
     }
 
-    // 为每个 ADC 通道创建校准句柄 (line fitting scheme)
+    // 为每个 ADC 通道创建校准句柄
     for (size_t i = 0; i < config->channel_count; i++) {
         const probe_channel_config_t *ch = &config->channels[i];
         if (ch->mode != PROBE_MODE_ADC) continue;
 
+#if ADC_CALI_USE_LINE_FITTING
         adc_cali_line_fitting_config_t cali_cfg = {
             .unit_id  = (ch->adc_unit == 1) ? ADC_UNIT_1 : ADC_UNIT_2,
             .chan     = ch->adc_channel,
@@ -180,9 +189,20 @@ esp_err_t adc_gpio_probe_init(const adc_gpio_probe_config_t *config,
 
         adc_cali_handle_t cali = NULL;
         esp_err_t cali_ret = adc_cali_create_scheme_line_fitting(&cali_cfg, &cali);
+#else
+        adc_cali_curve_fitting_config_t cali_cfg = {
+            .unit_id  = (ch->adc_unit == 1) ? ADC_UNIT_1 : ADC_UNIT_2,
+            .chan     = ch->adc_channel,
+            .atten    = ch->attenuation,
+            .bitwidth = ch->bit_width,
+        };
+
+        adc_cali_handle_t cali = NULL;
+        esp_err_t cali_ret = adc_cali_create_scheme_curve_fitting(&cali_cfg, &cali);
+#endif
         if (cali_ret == ESP_OK) {
             out_handle->cali_handles[i] = cali;
-            ESP_LOGI(TAG, "  CH%u: ADC calibration created (line fitting)", ch->channel_num);
+            ESP_LOGI(TAG, "  CH%u: ADC calibration created", ch->channel_num);
         } else {
             ESP_LOGW(TAG, "  CH%u: ADC calibration not available: %s", ch->channel_num, esp_err_to_name(cali_ret));
         }
@@ -217,7 +237,11 @@ esp_err_t adc_gpio_probe_deinit(adc_gpio_probe_device_t *handle)
     // 删除校准句柄
     for (size_t i = 0; i < PROBE_MAX_CHANNELS; i++) {
         if (handle->cali_handles[i]) {
+#if ADC_CALI_USE_LINE_FITTING
             adc_cali_delete_scheme_line_fitting(handle->cali_handles[i]);
+#else
+            adc_cali_delete_scheme_curve_fitting(handle->cali_handles[i]);
+#endif
             handle->cali_handles[i] = NULL;
         }
     }
