@@ -15,7 +15,7 @@ jobs:
         target: [esp32, esp32s3, esp32c3, esp32c6]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up ESP-IDF
         uses: espressif/esp-idf-ci-action@v1
@@ -32,7 +32,7 @@ jobs:
           tar czf subboard-${{ matrix.target }}.tar.gz *.bin
 
       - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: firmware-${{ matrix.target }}
           path: release/subboard-${{ matrix.target }}.tar.gz
@@ -45,11 +45,11 @@ jobs:
         working-directory: software/host/web
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install & Build Frontend
         run: |
@@ -57,7 +57,7 @@ jobs:
           npm run build
 
       - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: web-dist
           path: software/host/web/dist/
@@ -91,7 +91,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -102,7 +102,7 @@ jobs:
           workspaces: software/host
 
       - name: Download frontend dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: web-dist
           path: software/host/web/dist/
@@ -144,7 +144,7 @@ jobs:
           Compress-Archive -Path $FULL_NAME -DestinationPath "$FULL_NAME.zip" -Force
 
       - name: Upload host artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: host-${{ matrix.target }}
           path: |
@@ -159,10 +159,10 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
 
@@ -187,7 +187,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Verify & Publish Release
         uses: actions/github-script@v7

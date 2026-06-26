@@ -7,16 +7,16 @@ description = "HeteroLink 上位机 - 异构协处理器监控平台 (Web Backen
 
 [dependencies]
 # Web framework
-axum = { version = "0.7", features = ["ws", "json", "macros"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "fs"] }
+axum = { version = "0.8", features = ["ws", "json", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs"] }
 
 # Async runtime
-tokio = { version = "1.37", features = ["full", "sync", "rt-multi-thread"] }
+tokio = { version = "1.52", features = ["full", "sync", "rt-multi-thread"] }
 futures = "0.3"
 
 # MQTT
-rumqttc = "0.24"
+rumqttc = "0.25"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -31,20 +31,20 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Error handling
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 
 # CSV export
-csv = "1.3"
+csv = "1.4"
 
 # Config paths
-dirs = "5.0"
+dirs = "6.0"
 
 # UUID generation
-uuid = { version = "1.8", features = ["v4"] }
+uuid = { version = "1.23", features = ["v4"] }
 
 # Fast random number generation (for simulation)
-fastrand = "2.0"
+fastrand = "2.4"
 
 # Self-update from GitHub releases
 self_update = { version = "0.41", features = ["archive-tar", "archive-zip", "compression-flate2", "compression-zip-deflate"] }

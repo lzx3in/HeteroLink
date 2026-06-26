@@ -19,7 +19,7 @@ jobs:
         target: [esp32, esp32s3, esp32c3, esp32c6]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up ESP-IDF
         uses: espressif/esp-idf-ci-action@v1
@@ -29,7 +29,7 @@ jobs:
           path: 'unit'
 
       - name: Upload Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: subboard-${{ matrix.target }}-bin
           path: unit/build/*.bin
@@ -42,11 +42,11 @@ jobs:
         working-directory: software/host/web
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install
         run: npm ci
@@ -58,7 +58,7 @@ jobs:
         run: npm run build
 
       - name: Upload dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: web-dist
           path: software/host/web/dist/
@@ -76,7 +76,7 @@ jobs:
         working-directory: software/host
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -85,7 +85,7 @@ jobs:
           workspaces: software/host
 
       - name: Download frontend dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: web-dist
           path: software/host/web/dist/

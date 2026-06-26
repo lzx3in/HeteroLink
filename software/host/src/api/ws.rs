@@ -25,7 +25,7 @@ async fn handle_ws_connection(socket: WebSocket, state: AppState) {
         while let Ok(domain_event) = rx.recv().await {
             if let Some(ws_msg) = WsMessage::from_domain(&domain_event) {
                 if let Ok(json) = serde_json::to_string(&ws_msg) {
-                    if sender.send(Message::Text(json)).await.is_err() {
+                    if sender.send(Message::Text(json.into())).await.is_err() {
                         break;
                     }
                 }
