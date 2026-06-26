@@ -7,6 +7,10 @@ on:
     branches: [main, develop]
 
 jobs:
+  # ============================================================
+  # Stage 1: Build — 编译固件和前端
+  # ============================================================
+
   build-firmware:
     name: Build Firmware (${{ matrix.target }})
     runs-on: ubuntu-latest
@@ -35,31 +39,6 @@ jobs:
         with:
           name: subboard-${{ matrix.target }}-bin
           path: unit/build/*.bin
-
-  test-host:
-    name: Test Host (Rust)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: software/host
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: software/host
-
-      - name: Check
-        run: cargo check --all-features
-
-      - name: Test
-        run: cargo test --all-features
-
-      - name: Clippy
-        run: cargo clippy --all-features -- -D warnings
 
   build-frontend:
     name: Build Frontend (Vue)
@@ -90,29 +69,22 @@ jobs:
           name: web-dist
           path: software/host/web/dist/
 
-  build-host:
-    name: Build Host (Rust, ${{ matrix.target }})
-    needs: [test-host, build-frontend]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-          - target: x86_64-apple-darwin
-            os: macos-13
-          - target: aarch64-apple-darwin
-            os: macos-latest
+  # ============================================================
+  # Stage 2: Test — Rust 代码检查与测试
+  # ============================================================
+
+  test-host:
+    name: Test Host (Rust)
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: software/host
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -124,10 +96,11 @@ jobs:
           name: web-dist
           path: software/host/web/dist/
 
-      - name: Build (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cd software/host && cargo build --release --target ${{ matrix.target }}
+      - name: Check
+        run: cargo check --all-features
 
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: cd software/host && cargo build --release --target ${{ matrix.target }}
+      - name: Test
+        run: cargo test --all-features
+
+      - name: Clippy
+        run: cargo clippy --all-features -- -D warnings

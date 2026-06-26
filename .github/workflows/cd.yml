@@ -1,4 +1,4 @@
-name: Release
+name: CD
 
 on:
   push:
@@ -157,8 +157,8 @@ jobs:
             software/host/release/heterolink-host-${{ matrix.target }}.${{ matrix.archive }}
             software/host/release/heterolink-host-${{ matrix.target }}-full.${{ matrix.archive }}
 
-  release:
-    name: Publish Release
+  publish:
+    name: Publish Draft
     needs: [pack-firmware, pack-host]
     runs-on: ubuntu-latest
     permissions:
@@ -177,13 +177,23 @@ jobs:
           mkdir -p release-assets
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release-assets/ \;
 
-      - name: Create GitHub Release
+      - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Verify & Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Verify & Publish Release
         uses: actions/github-script@v7
