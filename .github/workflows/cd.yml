@@ -20,7 +20,7 @@ jobs:
       - name: Set up ESP-IDF
         uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: v5.3
+          esp_idf_version: v6.0
           target: ${{ matrix.target }}
           path: 'unit'
 
