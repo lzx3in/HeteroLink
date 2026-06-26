@@ -28,12 +28,6 @@ jobs:
           target: ${{ matrix.target }}
           path: 'unit'
 
-      - name: Build
-        run: |
-          cd unit
-          idf.py set-target ${{ matrix.target }}
-          idf.py build
-
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:

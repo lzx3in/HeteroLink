@@ -24,12 +24,6 @@ jobs:
           target: ${{ matrix.target }}
           path: 'unit'
 
-      - name: Build
-        run: |
-          cd unit
-          idf.py set-target ${{ matrix.target }}
-          idf.py build
-
       - name: Pack
         run: |
           mkdir -p release
