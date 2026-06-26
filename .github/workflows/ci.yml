@@ -29,7 +29,7 @@ jobs:
           path: 'unit'
 
       - name: Upload Binary
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: subboard-${{ matrix.target }}-bin
           path: unit/build/*.bin
@@ -58,7 +58,7 @@ jobs:
         run: npm run build
 
       - name: Upload dist
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: web-dist
           path: software/host/web/dist/
@@ -85,7 +85,7 @@ jobs:
           workspaces: software/host
 
       - name: Download frontend dist
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: web-dist
           path: software/host/web/dist/

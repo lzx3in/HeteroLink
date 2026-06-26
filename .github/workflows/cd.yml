@@ -32,7 +32,7 @@ jobs:
           tar czf subboard-${{ matrix.target }}.tar.gz *.bin
 
       - name: Upload firmware artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: firmware-${{ matrix.target }}
           path: release/subboard-${{ matrix.target }}.tar.gz
@@ -57,7 +57,7 @@ jobs:
           npm run build
 
       - name: Upload dist artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: web-dist
           path: software/host/web/dist/
@@ -102,7 +102,7 @@ jobs:
           workspaces: software/host
 
       - name: Download frontend dist
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: web-dist
           path: software/host/web/dist/
@@ -144,7 +144,7 @@ jobs:
           Compress-Archive -Path $FULL_NAME -DestinationPath "$FULL_NAME.zip" -Force
 
       - name: Upload host artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: host-${{ matrix.target }}
           path: |
@@ -162,7 +162,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: artifacts
 
