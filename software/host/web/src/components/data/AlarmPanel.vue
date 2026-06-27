@@ -60,12 +60,12 @@ function levelClass(alarm: AlarmRecord): string {
   return `level-${alarm.level?.toLowerCase() || 'info'}`
 }
 
-function tagType(alarm: AlarmRecord): '' | 'success' | 'warning' | 'danger' | 'info' {
+function tagType(alarm: AlarmRecord): 'success' | 'warning' | 'danger' | 'info' | undefined {
   switch (alarm.level?.toLowerCase()) {
     case 'critical': return 'danger'
     case 'warning': return 'warning'
     case 'info': return 'info'
-    default: return ''
+    default: return undefined
   }
 }
 
